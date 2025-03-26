@@ -1,0 +1,21 @@
+{
+	"folders": [
+		{
+			"path": "./example"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"idf.enableCCache": true,
+		"idf.showOnboardingOnInit": false,
+		"idf.telemetry": false
+	},
+	"extensions": {
+		"recommendations": [
+			"espressif.esp-idf-extension",
+			"ms-vscode.cpptools-extension-pack"
+		]
+	}
+}

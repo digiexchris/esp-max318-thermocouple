@@ -1,0 +1,13 @@
+{
+    "name": "max31856-espidf",
+    "version": "0.1.0",
+    "description": "A small C++ implementation of a max31856 thermocouple amplifier for espidf.",
+    "frameworks": "espidf",
+    "platforms": "*",
+    "build": {
+      "srcFilter": "+<*>",
+      "flags": [
+        "-I ./src/max31856-espidf/"
+      ]
+    }
+  }

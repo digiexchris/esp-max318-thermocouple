@@ -1,0 +1,5 @@
+version: "0.1.0"
+description: A small C++ implementation of a max31856 thermocouple amplifier for espidf.
+url: https://github.com/digiexchris/max31856-espidf
+dependencies:
+  idf: ">=5.0"
