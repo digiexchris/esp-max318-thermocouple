@@ -14,7 +14,7 @@
 
 #include <esp_log.h>
 
-namespace MAX31856
+namespace MAX31856_ESPIDF
 {
 
 	constexpr uint8_t MAX31856_CR0_REG = 0x00;

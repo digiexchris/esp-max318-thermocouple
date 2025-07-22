@@ -5,7 +5,7 @@
 
 #include "max31856-espidf/max31856.hxx"
 
-namespace MAX31856
+namespace MAX31856_ESPIDF
 {
 
 	const char *TAG = "MAX31856";
