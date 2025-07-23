@@ -1,8 +1,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_log.h>
-
-#include "max31856.hxx"
+#include <memory>
+#include "esp-max318-thermocouple/max31856.hxx"
+#include "esp-max318-thermocouple/max31855.hxx"
+#include "esp-max318-thermocouple/spimanager.hxx"
 
 static const char *TAG = "MAX31856_Example";
 
@@ -10,49 +12,43 @@ extern "C" void app_main()
 {
     ESP_LOGI(TAG, "Starting MAX31856 Example Application");
 
-    // attach the driver to SPI3
-    MAX31856::MAX31856 thermocouple(SPI3_HOST);
+    // attach the manager to SPI3
+    ESP_MAX318_THERMOCOUPLE::SPIManager manager(SPI3_HOST);
 
     // register a few MAX31856 devices, different CS pin for each device on the same bus
     // the esp32 supports only up to 3 devices on the same bus
-    thermocouple.AddDevice(MAX31856::ThermocoupleType::MAX31856_TCTYPE_K, GPIO_NUM_5, 0);
-    thermocouple.AddDevice(MAX31856::ThermocoupleType::MAX31856_TCTYPE_J, GPIO_NUM_18, 1);
-    thermocouple.AddDevice(MAX31856::ThermocoupleType::MAX31856_TCTYPE_N, GPIO_NUM_19, 2);
 
-    // change the thermocouple type after adding if you want to
-    // thermocouple.setType(MAX31856::ThermocoupleType::MAX31856_TCTYPE_B, 0);
+    std::shared_ptr<ESP_MAX318_THERMOCOUPLE::MAX31856> thermocouple1 = manager.CreateDevice<ESP_MAX318_THERMOCOUPLE::MAX31856>(GPIO_NUM_5);
+
+    std::shared_ptr<ESP_MAX318_THERMOCOUPLE::MAX31855> thermocouple2 = manager.CreateDevice<ESP_MAX318_THERMOCOUPLE::MAX31855>(GPIO_NUM_18);
+
+    auto thermocouple3 = manager.CreateDevice<ESP_MAX318_THERMOCOUPLE::MAX31856>(GPIO_NUM_19);
+
+    // change the thermocouple type after creating if you want to
+    thermocouple1->setType(ESP_MAX318_THERMOCOUPLE::MAX31856::ThermocoupleType::MAX31856_TCTYPE_B);
 
     // set the fault thresholds for the devices
     // NOTE: this may not be working yet, I always see these faults set no matter what I do
-    //  thermocouple.setTempFaultThreshholds(-40, 140, 0);
-    //  thermocouple.setTempFaultThreshholds(-40, 140, 1);
-    //  thermocouple.setTempFaultThreshholds(-40, 140, 2);
-    //  thermocouple.setColdJunctionFaultThreshholds(-40, 140, 0);
-    //  thermocouple.setColdJunctionFaultThreshholds(-40, 140, 1);
-    //  thermocouple.setColdJunctionFaultThreshholds(-40, 140, 2);
+    thermocouple1->setTempFaultThreshholds(-40, 140);
+    thermocouple3->setTempFaultThreshholds(0, 1370);
+    thermocouple1->setColdJunctionFaultThreshholds(-40, 140);
+    thermocouple3->setColdJunctionFaultThreshholds(0, 140);
 
     while (42)
     {
-        // read the temperature from each device
-        for (int i = 0; i < 3; i++)
-        {
-            float temperature = thermocouple.readTemperature(i);
-            ESP_LOGI(TAG, "Temperature from device %d: %.2f °C", i, temperature);
-        }
+        // read the temperature
 
-        // read the cold junction temperature from each device
-        for (int i = 0; i < 3; i++)
-        {
-            float cold_junction = thermocouple.readColdJunction(i);
-            ESP_LOGI(TAG, "Cold Junction from device %d: %.2f °C", i, cold_junction);
-        }
+        ESP_MAX318_THERMOCOUPLE::Result result;
+        thermocouple1->read(result);
+        ESP_LOGI(TAG, "Temperature from device 1: %.2f °C", result.thermocouple_c);
 
-        // read the fault status from each device
-        // NOTE: this may not be working yet, I always see these faults set no matter what I do
-        //  for (int i = 0; i < 3; i++) {
-        //      uint8_t fault = thermocouple.readFault(true, i);
-        //      ESP_LOGI(TAG, "Fault status from device %d: 0x%02X", i, fault);
-        //  }
+        // and maybe the cold junction, both in F if you like
+        thermocouple2->read(result);
+        ESP_LOGI(TAG, "Temperature from device 2: %.2f °F, Cold Junction: %.2f °F", result.thermocouple_f, result.coldjunction_f);
+
+        // and optionally the fault
+        thermocouple3->read(result);
+        ESP_LOGI(TAG, "Temperature from device 3: %.2f °F, Cold Junction: %.2f °F, Fault: %s", result.thermocouple_f, result.coldjunction_f, result.fault.c_str());
 
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
