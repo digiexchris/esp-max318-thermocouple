@@ -44,14 +44,15 @@ namespace ESP_MAX318_THERMOCOUPLE
 	constexpr uint8_t MAX31855_LTCBL_REG = 0x0E;
 	constexpr uint8_t MAX31855_SR_REG = 0x0F;
 
-	constexpr uint8_t MAX31855_FAULT_CJRANGE = 0x80;
-	constexpr uint8_t MAX31855_FAULT_TCRANGE = 0x40;
-	constexpr uint8_t MAX31855_FAULT_CJHIGH = 0x20;
-	constexpr uint8_t MAX31855_FAULT_CJLOW = 0x10;
-	constexpr uint8_t MAX31855_FAULT_TCHIGH = 0x08;
-	constexpr uint8_t MAX31855_FAULT_TCLOW = 0x04;
-	constexpr uint8_t MAX31855_FAULT_OVUV = 0x02;
-	constexpr uint8_t MAX31855_FAULT_OPEN = 0x01;
+	// constexpr uint8_t MAX31855_FAULT_CJRANGE = 0x80;
+	// constexpr uint8_t MAX31855_FAULT_TCRANGE = 0x40;
+	// constexpr uint8_t MAX31855_FAULT_CJHIGH = 0x20;
+	// constexpr uint8_t MAX31855_FAULT_CJLOW = 0x10;
+	// constexpr uint8_t MAX31855_FAULT_TCHIGH = 0x08;
+	// constexpr uint8_t MAX31855_FAULT_TCLOW = 0x04;
+	// constexpr uint8_t MAX31855_FAULT_OVUV = 0x02;
+	// constexpr uint8_t MAX31855_FAULT_OPEN = 0x01;
+	// constexpr uint8_t MAX31855_FAULT_
 
 	using MAX31855Callback = void (*)(Result *result);
 

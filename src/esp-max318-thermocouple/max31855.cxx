@@ -71,22 +71,55 @@ namespace ESP_MAX318_THERMOCOUPLE
 
 	void MAX31855::read(Result &anOutResult)
 	{
-		uint16_t cj_temp = readRegister16(MAX31855_CJTH_REG);
-		float cj_temp_float = cj_temp;
-		cj_temp_float /= 256.0;
-		anOutResult.coldjunction_c = cj_temp_float;
-		anOutResult.coldjunction_f = (1.8 * cj_temp_float) + 32.0;
 
-		uint32_t tc_temp = readRegister24(MAX31855_LTCBH_REG);
-		if (tc_temp & 0x800000)
+		/*
+		todo:
+		 according to the datasheet: Note that the
+MAX31855 assumes a linear relationship between temperature and voltage. Because all thermocouples exhibit
+some level of nonlinearity, apply appropriate correction to
+the device’s output data.
+		*/
+
+		uint32_t v = readRegister32();
+		uint32_t t = v;
+		uint32_t cj = v;
+
+		uint8_t err = v & 0x7;
+
+		if (t & 0x80000000)
 		{
-			tc_temp |= 0xFF000000; // fix sign bit
+			// Negative value, drop the lower 18 bits and explicitly extend sign bits.
+			t = 0xFFFFC000 | ((t >> 18) & 0x00003FFF);
 		}
-		tc_temp >>= 5; // bottom 5 bits are unused
-		float tc_temp_float = tc_temp;
-		tc_temp_float *= 0.0078125;
-		anOutResult.thermocouple_c = tc_temp_float;
-		anOutResult.thermocouple_f = (1.8 * tc_temp_float) + 32.0;
+		else
+		{
+			// Positive value, just drop the lower 18 bits.
+			t >>= 18;
+		}
+		// Serial.println(v, HEX);
+
+		anOutResult.thermocouple_c = t;
+
+		// LSB = 0.25 degrees C
+		anOutResult.thermocouple_c *= 0.25;
+
+		// ignore bottom 4 bits - they're just thermocouple data
+		cj >>= 4;
+
+		// pull the bottom 11 bits off
+		float coldJunction = cj & 0x7FF;
+		// check sign bit!
+		if (cj & 0x800)
+		{
+			// Convert to negative value by extending sign and casting to signed type.
+			int16_t tmp = 0xF800 | (cj & 0x7FF);
+			coldJunction = tmp;
+		}
+		coldJunction *= 0.0625; // LSB = 0.0625 degrees
+
+		anOutResult.coldjunction_c = coldJunction;
+
+		anOutResult.thermocouple_f = (1.8 * anOutResult.thermocouple_f) + 32.0;
 	}
 
 } // namespace MAX31856
