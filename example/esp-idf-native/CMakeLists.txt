@@ -5,4 +5,4 @@
 # Define the project
 cmake_minimum_required(VERSION 3.16)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(MAX31856_Example)
+project(MAX318_Example)

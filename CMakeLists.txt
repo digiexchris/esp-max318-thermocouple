@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-file(GLOB SOURCES src/max31856-espidf/*.cxx)
+file(GLOB SOURCES src/esp-max318-thermocouple/*.cxx)
 
 idf_component_register(
     SRCS ${SOURCES}

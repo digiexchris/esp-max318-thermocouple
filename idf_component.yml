@@ -1,5 +1,5 @@
 version: "0.1.0"
-description: A small C++ implementation of a max31856 thermocouple amplifier for espidf.
-url: https://github.com/digiexchris/max31856-espidf
+description: Easily use multiple MAX31855 and MAX31856 thermocouples. on a single bus on an ESP32 with full hardware SPI support.
+url: https://github.com/digiexchris/esp-max318-thermocouple
 dependencies:
   idf: ">=5.0"
