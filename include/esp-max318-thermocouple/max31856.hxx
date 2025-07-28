@@ -36,20 +36,20 @@ namespace ESP_MAX318_THERMOCOUPLE
 			MAX31856_TCTYPE_T = 0b0111,
 			MAX31856_VMODE_G8 = 0b1000,
 			MAX31856_VMODE_G32 = 0b1100,
+			MAX31856_TCTYPE_UNKNOWN = 0xFF // Unknown type
 		};
 
 		MAX31856(gpio_num_t aCsPin, spi_host_device_t aHostId, const spi_device_interface_config_t &aDeviceConfig = defaultSpiDeviceConfig);
 
-		ThermocoupleType getType();
-		void setTempFaultThreshholds(float aLow, float aHigh) override;
-		void setColdJunctionFaultThreshholds(float aLow, float aHigh) override;
-		uint8_t readFault(bool logFault = false);
-		virtual void read(Result &anOutResult) override;
-		void setType(ThermocoupleType aType);
-		void setColdJunctionOffset(float anOffsetCelsius);
-		void setFaultMask(uint8_t aMask);
-		uint8_t readFaultMask();
-		void setAveragingMode(uint8_t anAveragingMode);
+		ThermocoupleType getType(int &anOutError);
+		bool setTempFaultThreshholds(float aLow, float aHigh, int &anOutError) override;
+		bool setColdJunctionFaultThreshholds(float aLow, float aHigh, int &anOutError) override;
+		virtual bool read(Result &anOutResult) override;
+		bool setType(ThermocoupleType aType, int &anOutError);
+		bool setColdJunctionOffset(float anOffsetCelsius, int &anOutError);
+		bool setFaultMask(uint8_t aMask, int &anOutError);
+		uint8_t readFaultMask(int &anOutError);
+		bool setAveragingMode(uint8_t anAveragingMode, int &anOutError);
 
 		static const spi_device_interface_config_t defaultSpiDeviceConfig;
 

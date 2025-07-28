@@ -38,9 +38,10 @@ namespace ESP_MAX318_THERMOCOUPLE
 		ESP_ERROR_CHECK(ret);
 	}
 
-	void MAX318_Base::writeRegister(uint8_t address, uint8_t data)
+	void MAX318_Base::writeRegister(uint8_t address, uint8_t data, int &anOutError)
 	{
 		esp_err_t ret;
+		anOutError = ESP_OK;
 		spi_transaction_t spi_transaction = {};
 
 		// Single transaction: address + data
@@ -51,12 +52,16 @@ namespace ESP_MAX318_THERMOCOUPLE
 		spi_transaction.tx_buffer = tx_data;
 
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
+		if (ret != ESP_OK) {
+			anOutError = ret;
+			return;
+		}
 	}
 
-	uint8_t MAX318_Base::readRegister(uint8_t address)
+	uint8_t MAX318_Base::readRegister(uint8_t address, int &anOutError)
 	{
 		esp_err_t ret;
+		anOutError = ESP_OK;
 
 		// Single transaction: address + dummy byte to get data
 		uint8_t tx_data[2] = {static_cast<uint8_t>(address & 0x7F), 0xFF};
@@ -68,16 +73,20 @@ namespace ESP_MAX318_THERMOCOUPLE
 			.rx_buffer = rx_data};
 
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
+		if (ret != ESP_OK) {
+			anOutError = ret;
+			return 0;
+		}
 
 		// Data comes back in rx_data[1] (rx_data[0] is garbage during address)
 		uint8_t reg_value = rx_data[1];
 		return reg_value;
 	}
 
-	uint16_t MAX318_Base::readRegister16(uint8_t address)
+	uint16_t MAX318_Base::readRegister16(uint8_t address, int &anOutError)
 	{
 		esp_err_t ret;
+		anOutError = ESP_OK;
 
 		// Single transaction: address + 2 data bytes
 		uint8_t tx_data[3] = {static_cast<uint8_t>(address & 0x7F), 0xFF, 0xFF};
@@ -91,7 +100,10 @@ namespace ESP_MAX318_THERMOCOUPLE
 		};
 
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
+		if(ret != ESP_OK) {
+			anOutError = ret;
+			return 0;
+		}
 
 		// rx_data[0] is garbage during address transmission
 		// rx_data[1] is first data byte, rx_data[2] is second data byte
@@ -99,8 +111,10 @@ namespace ESP_MAX318_THERMOCOUPLE
 		return reg_value;
 	}
 
-	uint32_t MAX318_Base::readRegister24(uint8_t address)
+	uint32_t MAX318_Base::readRegister24(uint8_t address, int &anOutError)
 	{
+		anOutError = ESP_OK;
+
 		esp_err_t ret;
 
 		// Single transaction: address + 3 data bytes
@@ -115,7 +129,10 @@ namespace ESP_MAX318_THERMOCOUPLE
 		};
 
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
+		if (ret != ESP_OK) {
+			anOutError = ret;
+			return 0;
+		}
 
 		// rx_data[0] is garbage, rx_data[1-3] are the 3 data bytes
 		uint32_t reg_value = (rx_data[1] << 16) | (rx_data[2] << 8) | rx_data[3];

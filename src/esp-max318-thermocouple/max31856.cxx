@@ -34,41 +34,49 @@ namespace ESP_MAX318_THERMOCOUPLE
 		: MAX318_Base(aCsPin, aHostId, aDeviceConfig)
 	{
 
+		int error = 0;
+
 		// // Set the MASK to 0xFF to disable all fault detection to test spi communication
-		writeRegister(MAX31856_MASK_REG, MAX31856_FAULT_ALL);
+		writeRegister(MAX31856_MASK_REG, MAX31856_FAULT_ALL, error);
+		assert(error == 0);
 
 		// // Validate device communication by reading a known register
-		uint8_t mask_reg = readRegister(MAX31856_MASK_REG);
+		uint8_t mask_reg = readRegister(MAX31856_MASK_REG, error);
+		assert(error == 0);
 		if (mask_reg != MAX31856_FAULT_ALL)
 		{ // All bits set might indicate no communication
 			ESP_LOGW(TAG, "Warning: setup returned unexpected values %02X, check SPI connection", mask_reg);
 		}
 
 		// turn them all back on again
-		writeRegister(MAX31856_MASK_REG, MAX31856_FAULT_NONE);
+		writeRegister(MAX31856_MASK_REG, MAX31856_FAULT_NONE, error);
+		assert(error == 0);
 
 		// Clear any existing faults
-		uint8_t cr0_val = readRegister(MAX31856_CR0_REG);
+		uint8_t cr0_val = readRegister(MAX31856_CR0_REG, error);
+		assert(error == 0);
 		cr0_val |= MAX31856_CR0_FAULTCLR; // Set the FAULTCLR bit
-		writeRegister(MAX31856_CR0_REG, cr0_val);
+		writeRegister(MAX31856_CR0_REG, cr0_val, error);
+		assert(error == 0);
 
-		setType(ThermocoupleType::MAX31856_TCTYPE_K); // Default to K type thermocouple
+		setType(ThermocoupleType::MAX31856_TCTYPE_K, error); // Default to K type thermocouple
+		assert(error == 0);
 
 		// Enable autoconvert mode
-		cr0_val = readRegister(MAX31856_CR0_REG);
+		cr0_val = readRegister(MAX31856_CR0_REG, error);
+		assert(error == 0);
 		cr0_val |= MAX31856_CR0_AUTOCONVERT; // Enable auto-convert mode
 		cr0_val &= ~MAX31856_CR0_1SHOT;		 // Disable one-shot mode
 		cr0_val &= ~MAX31856_CR0_CJ;		 // Clear CJ bit = use internal CJ
-		writeRegister(MAX31856_CR0_REG, cr0_val);
+		writeRegister(MAX31856_CR0_REG, cr0_val, error);
+		assert(error == 0);
 
 		// set default temp thresholds for the default tc type
 		// setTempFaultThreshholds(-270.0f, 1372.0f);
 		// setColdJunctionFaultThreshholds(-64.0f, 125.0f);
-
-		ESP_LOGI(TAG, "MAX31856 initialized successfully on CS pin %d", aCsPin);
 	}
 
-	void MAX31856::setTempFaultThreshholds(float low, float high)
+	bool MAX31856::setTempFaultThreshholds(float low, float high, int &anOutError)
 	{
 		// Convert Celsius to linearized temperature fault threshold format
 		// Per MAX31856 datasheet: Linearized temperature fault thresholds use 0.0625°C per LSB
@@ -76,29 +84,73 @@ namespace ESP_MAX318_THERMOCOUPLE
 		int16_t low_int = (int16_t)(low * 16.0f);
 		int16_t high_int = (int16_t)(high * 16.0f);
 
+		esp_err_t ret;
+		anOutError = ESP_OK;
+
 		// Write high threshold (big-endian)
-		writeRegister(MAX31856_LTHFTH_REG, high_int >> 8);
-		writeRegister(MAX31856_LTHFTL_REG, high_int & 0xFF);
+		writeRegister(MAX31856_LTHFTH_REG, high_int >> 8, ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false; // Return false on error
+		}
+		writeRegister(MAX31856_LTHFTL_REG, high_int & 0xFF, ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false; // Return false on error
+		}
 
 		// Write low threshold (big-endian)
-		writeRegister(MAX31856_LTLFTH_REG, low_int >> 8);
-		writeRegister(MAX31856_LTLFTL_REG, low_int & 0xFF);
+		writeRegister(MAX31856_LTLFTH_REG, low_int >> 8, ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false; // Return false on error
+		}
+		writeRegister(MAX31856_LTLFTL_REG, low_int & 0xFF, ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false; // Return false on error
+		}
+
+		return (anOutError == ESP_OK);
 	}
 
-	void MAX31856::setFaultMask(uint8_t aMask)
+	bool MAX31856::setFaultMask(uint8_t aMask, int &anOutError)
 	{
-		writeRegister(MAX31856_MASK_REG, aMask);
+		writeRegister(MAX31856_MASK_REG, aMask, anOutError);
+
+		if (anOutError != ESP_OK)
+		{
+			return false;
+		}
+		return true;
 	}
 
-	uint8_t MAX31856::readFaultMask()
+	uint8_t MAX31856::readFaultMask(int &anOuterror)
 	{
-		return readRegister(MAX31856_MASK_REG);
+		return readRegister(MAX31856_MASK_REG, anOuterror);
 	}
 
-	void MAX31856::read(Result &anOutResult)
+	bool MAX31856::read(Result &anOutResult)
 	{
+
+		anOutResult.spi_success = true;	 // Assume valid unless we find a fault
+		anOutResult.error_code = ESP_OK; // Default to no error
+
+		esp_err_t ret;
+
 		// oneshotTemperature();
-		uint16_t cj_temp = readRegister16(MAX31856_CJTH_REG);
+		uint16_t cj_temp = readRegister16(MAX31856_CJTH_REG, ret);
+		if (ret != ESP_OK)
+		{
+			anOutResult.spi_success = false;
+			anOutResult.error_code = ret;
+			return false;
+		}
+
 		// Cold junction is 14-bit signed value in bits 15:2
 		int16_t cj_signed = cj_temp >> 2; // Shift to get 14-bit value
 		if (cj_signed & 0x2000)
@@ -109,7 +161,14 @@ namespace ESP_MAX318_THERMOCOUPLE
 		anOutResult.coldjunction_c = cj_temp_float;
 		anOutResult.coldjunction_f = (1.8 * cj_temp_float) + 32.0;
 
-		uint32_t tc_temp = readRegister24(MAX31856_LTCBH_REG);
+		uint32_t tc_temp = readRegister24(MAX31856_LTCBH_REG, ret);
+		if (ret != ESP_OK)
+		{
+			anOutResult.spi_success = false;
+			anOutResult.error_code = ret;
+			return false;
+		}
+
 		tc_temp >>= 5; // bottom 5 bits are unused, now have 19-bit value
 
 		// Handle sign extension for 19-bit signed value
@@ -122,7 +181,13 @@ namespace ESP_MAX318_THERMOCOUPLE
 		anOutResult.thermocouple_c = tc_temp_float;
 		anOutResult.thermocouple_f = (1.8 * tc_temp_float) + 32.0;
 
-		uint8_t fault_val = readRegister(MAX31856_SR_REG);
+		uint8_t fault_val = readRegister(MAX31856_SR_REG, ret);
+		if (ret != ESP_OK)
+		{
+			anOutResult.spi_success = false;
+			anOutResult.error_code = ret;
+			return false;
+		}
 
 		anOutResult.fault_bits = fault_val;
 		anOutResult.fault.clear();
@@ -149,13 +214,28 @@ namespace ESP_MAX318_THERMOCOUPLE
 				anOutResult.fault.push_back("Thermocouple Open");
 
 			// Clear the faults
-			uint8_t cr0_val = readRegister(MAX31856_CR0_REG);
+			uint8_t cr0_val = readRegister(MAX31856_CR0_REG, ret);
+			if (ret != ESP_OK)
+			{
+				anOutResult.spi_success = false;
+				anOutResult.error_code = ret;
+				return false;
+			}
+
 			cr0_val |= MAX31856_CR0_FAULTCLR; // Set the FAULTCLR bit
-			writeRegister(MAX31856_CR0_REG, cr0_val);
+			writeRegister(MAX31856_CR0_REG, cr0_val, ret);
+			if (ret != ESP_OK)
+			{
+				anOutResult.spi_success = false;
+				anOutResult.error_code = ret;
+				return false;
+			}
 		}
+
+		return true;
 	}
 
-	void MAX31856::setColdJunctionOffset(float anOffsetCelsius)
+	bool MAX31856::setColdJunctionOffset(float anOffsetCelsius, int &anOutError)
 	{
 		// CJTO register: signed 8-bit, 0.0625°C per LSB
 		if (anOffsetCelsius < -8.0f)
@@ -164,74 +244,81 @@ namespace ESP_MAX318_THERMOCOUPLE
 			anOffsetCelsius = 7.9375f;
 
 		int8_t offset_int = static_cast<int8_t>(anOffsetCelsius / 0.0625f);
-		writeRegister(MAX31856_CJTO_REG, static_cast<uint8_t>(offset_int));
+
+		esp_err_t ret;
+		anOutError = ESP_OK;
+		writeRegister(MAX31856_CJTO_REG, static_cast<uint8_t>(offset_int), ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false;
+		}
+
+		return true;
 	}
 
-	void MAX31856::setType(ThermocoupleType type)
+	bool MAX31856::setType(ThermocoupleType type, int &anOutError)
 	{
-		uint8_t val = readRegister(MAX31856_CR1_REG);
+		esp_err_t ret;
+		anOutError = ESP_OK;
+		uint8_t val = readRegister(MAX31856_CR1_REG, ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false;
+		}
 		val &= 0xF0; // Mask off bottom 4 bits
 		val |= static_cast<uint8_t>(type) & 0x0F;
-		writeRegister(MAX31856_CR1_REG, val);
+		writeRegister(MAX31856_CR1_REG, val, ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false;
+		}
+
+		return true;
 	}
 
-	void MAX31856::setAveragingMode(uint8_t anAveragingMode)
+	bool MAX31856::setAveragingMode(uint8_t anAveragingMode, int &anOutError)
 	{
-		uint8_t val = readRegister(MAX31856_CR1_REG);
+		esp_err_t ret;
+		uint8_t val = readRegister(MAX31856_CR1_REG, ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false;
+		}
 		val &= 0x0F;					 // Mask off top 4 bits
 		val |= (anAveragingMode & 0xF0); // Set new averaging mode
-		writeRegister(MAX31856_CR1_REG, val);
+		writeRegister(MAX31856_CR1_REG, val, ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false;
+		}
+
+		return true;
 	}
 
-	MAX31856::ThermocoupleType MAX31856::getType()
+	MAX31856::ThermocoupleType MAX31856::getType(int &anOutError)
 	{
-		uint8_t val = readRegister(MAX31856_CR1_REG);
+		esp_err_t ret;
+		anOutError = ESP_OK;
+		uint8_t val = readRegister(MAX31856_CR1_REG, ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return ThermocoupleType::MAX31856_TCTYPE_UNKNOWN;
+		}
 
 		val &= 0x0F;
 
 		ThermocoupleType type = static_cast<ThermocoupleType>(val);
 
-		switch (type)
-		{
-		case ThermocoupleType::MAX31856_TCTYPE_B:
-			ESP_LOGI(TAG, "TC Type: B");
-			break;
-		case ThermocoupleType::MAX31856_TCTYPE_E:
-			ESP_LOGI(TAG, "TC Type: E");
-			break;
-		case ThermocoupleType::MAX31856_TCTYPE_J:
-			ESP_LOGI(TAG, "TC Type: J");
-			break;
-		case ThermocoupleType::MAX31856_TCTYPE_K:
-			ESP_LOGI(TAG, "TC Type: K");
-			break;
-		case ThermocoupleType::MAX31856_TCTYPE_N:
-			ESP_LOGI(TAG, "TC Type: N");
-			break;
-		case ThermocoupleType::MAX31856_TCTYPE_R:
-			ESP_LOGI(TAG, "TC Type: R");
-			break;
-		case ThermocoupleType::MAX31856_TCTYPE_S:
-			ESP_LOGI(TAG, "TC Type: S");
-			break;
-		case ThermocoupleType::MAX31856_TCTYPE_T:
-			ESP_LOGI(TAG, "TC Type: T");
-			break;
-		case ThermocoupleType::MAX31856_VMODE_G8:
-			ESP_LOGI(TAG, "Voltage x8 Gain mode");
-			break;
-		case ThermocoupleType::MAX31856_VMODE_G32:
-			ESP_LOGI(TAG, "Voltage x8 Gain mode");
-			break;
-		default:
-			ESP_LOGI(TAG, "TC Type: Unknown");
-			break;
-		}
-
 		return type;
 	}
 
-	void MAX31856::setColdJunctionFaultThreshholds(float low, float high)
+	bool MAX31856::setColdJunctionFaultThreshholds(float low, float high, int &anOutError)
 	{
 		// MAX31856 cold junction fault thresholds: -128°C to +127°C, 1°C per LSB
 		if (low < -64.0f)
@@ -246,14 +333,23 @@ namespace ESP_MAX318_THERMOCOUPLE
 		int8_t low_int = static_cast<int8_t>(low);
 		int8_t high_int = static_cast<int8_t>(high);
 
-		// Write directly as unsigned bytes (two's complement representation)
-		writeRegister(MAX31856_CJHF_REG, static_cast<uint8_t>(high_int));
-		writeRegister(MAX31856_CJLF_REG, static_cast<uint8_t>(low_int));
+		esp_err_t ret;
+		anOutError = ESP_OK;
 
-		// Log the actual values being written
-		ESP_LOGI(TAG, "Cold Junction Thresholds set: Low=%.0f°C (0x%02X), High=%.0f°C (0x%02X)",
-				 static_cast<double>(low), static_cast<uint8_t>(low_int),
-				 static_cast<double>(high), static_cast<uint8_t>(high_int));
+		// Write directly as unsigned bytes (two's complement representation)
+		writeRegister(MAX31856_CJHF_REG, static_cast<uint8_t>(high_int), ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false;
+		}
+		writeRegister(MAX31856_CJLF_REG, static_cast<uint8_t>(low_int), ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false;
+		}
+		return true;
 	}
 
 } // namespace MAX31856

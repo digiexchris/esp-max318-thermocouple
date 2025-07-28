@@ -15,7 +15,24 @@ namespace ESP_MAX318_THERMOCOUPLE
         float thermocouple_c;
         float thermocouple_f;
         std::vector<std::string> fault;
-        uint8_t fault_bits; // raw fault bits from the device
+        uint8_t fault_bits;      // raw fault bits from the device
+        int error_code;          // esp_err_t error code
+        bool spi_success = true; // false if there was an error
+    };
+
+    class SPIError
+    {
+    public:
+        static const uint8_t SPI_OK = 0;
+        static const uint8_t SPI_ERR_NOT_INITIALIZED = 1;
+        static const uint8_t SPI_ERR_INVALID_ARG = 2;
+        static const uint8_t SPI_ERR_TIMEOUT = 3;
+        static const uint8_t SPI_ERR_INVALID_STATE = 4;
+        static const uint8_t SPI_ERR_NO_MEM = 5;
+        static const uint8_t SPI_ERR_INVALID_SIZE = 6;
+        static const uint8_t SPI_ERR_NOT_SUPPORTED = 7;
+        static const uint8_t SPI_ERR_INVALID_RESPONSE = 8;
+        static const uint8_t SPI_ERR_UNKNOWN = 9;
     };
 
     class MAX318_Base
@@ -23,16 +40,17 @@ namespace ESP_MAX318_THERMOCOUPLE
     public:
         MAX318_Base(gpio_num_t aCsPin, spi_host_device_t aHostId, const spi_device_interface_config_t &aDeviceConfig);
 
-        virtual void read(Result &anOutResult) = 0;
+        virtual bool read(Result &anOutResult) = 0;
 
-        virtual void setTempFaultThreshholds(float aLow, float aHigh) = 0;
-        virtual void setColdJunctionFaultThreshholds(float aLow, float aHigh) = 0;
+        virtual bool setTempFaultThreshholds(float aLow, float aHigh, int &anOutError) = 0;
+        virtual bool setColdJunctionFaultThreshholds(float aLow, float aHigh, int &anOutError) = 0;
 
         // generic SPI functions for any of this device class
-        void writeRegister(uint8_t anAddress, uint8_t someData);
-        uint8_t readRegister(uint8_t anAddress);
-        uint16_t readRegister16(uint8_t anAddress);
-        uint32_t readRegister24(uint8_t anAddress);
+        // anOutError is an esp_err_t error code
+        void writeRegister(uint8_t anAddress, uint8_t someData, int &anOutError);
+        uint8_t readRegister(uint8_t anAddress, int &anOutError);
+        uint16_t readRegister16(uint8_t anAddress, int &anOutError);
+        uint32_t readRegister24(uint8_t anAddress, int &anOutError);
 
     protected:
         gpio_num_t myCsPin;

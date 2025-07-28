@@ -48,14 +48,14 @@ namespace ESP_MAX318_THERMOCOUPLE
 	public:
 		MAX31855(gpio_num_t aCsPin, spi_host_device_t aHostId, const spi_device_interface_config_t &aDeviceConfig = defaultSpiDeviceConfig);
 
-		void read(Result &anOutResult) override;
-		void setTempFaultThreshholds(float aLow, float aHigh) override;
-		void setColdJunctionFaultThreshholds(float aLow, float aHigh) override;
+		bool read(Result &anOutResult) override;
+		bool setTempFaultThreshholds(float aLow, float aHigh, int &anOutError) override;
+		bool setColdJunctionFaultThreshholds(float aLow, float aHigh, int &anOutError) override;
 
 		static const spi_device_interface_config_t defaultSpiDeviceConfig;
 
 	private:
-		uint32_t readRegister32();
+		uint32_t readRegister32(int &anOutError);
 		double myTemperatureHighThreshold = 1372.0;
 		double myTemperatureLowThreshold = -270.0;
 		double myColdJunctionHighThreshold = 125.0;

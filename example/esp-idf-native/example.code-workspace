@@ -1,11 +1,8 @@
 {
 	"folders": [
 		{
-			"path": "./example"
+			"path": "./"
 		},
-		{
-			"path": "."
-		}
 	],
 	"settings": {
 		"idf.enableCCache": true,
