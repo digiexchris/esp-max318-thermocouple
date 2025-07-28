@@ -35,40 +35,6 @@ namespace ESP_MAX318_THERMOCOUPLE
 	{
 	}
 
-	uint8_t MAX31855::readFault(bool log_fault)
-	{
-		ESP_LOGE("MAX31855::readFault", "NOT WORKING YET");
-		abort();
-
-		// Read the fault status register
-		uint8_t fault_val = readRegister(MAX31855_SR_REG);
-
-		// Log faults if requested and if any faults exist
-		if (log_fault && fault_val)
-		{
-			// Log all faults including range info
-			if (fault_val & MAX31855_FAULT_CJRANGE)
-				ESP_LOGW(MAX31855TAG, "Fault: Cold Junction Range");
-			if (fault_val & MAX31855_FAULT_TCRANGE)
-				ESP_LOGW(MAX31855TAG, "Fault: Thermocouple Range");
-			if (fault_val & MAX31855_FAULT_CJHIGH)
-				ESP_LOGW(MAX31855TAG, "Fault: Cold Junction High");
-			if (fault_val & MAX31855_FAULT_CJLOW)
-				ESP_LOGW(MAX31855TAG, "Fault: Cold Junction Low");
-			if (fault_val & MAX31855_FAULT_TCHIGH)
-				ESP_LOGW(MAX31855TAG, "Fault: Thermocouple High");
-			if (fault_val & MAX31855_FAULT_TCLOW)
-				ESP_LOGW(MAX31855TAG, "Fault: Thermocouple Low");
-			if (fault_val & MAX31855_FAULT_OVUV)
-				ESP_LOGW(MAX31855TAG, "Fault: Over/Under Voltage");
-			if (fault_val & MAX31855_FAULT_OPEN)
-				ESP_LOGW(MAX31855TAG, "Fault: Thermocouple Open");
-		}
-
-		// Return the full fault value
-		return fault_val;
-	}
-
 	void MAX31855::read(Result &anOutResult)
 	{
 
@@ -81,45 +47,74 @@ the device’s output data.
 		*/
 
 		uint32_t v = readRegister32();
-		uint32_t t = v;
-		uint32_t cj = v;
 
-		uint8_t err = v & 0x7;
+		// Extract fault bits (bits 2, 1, 0)
+		uint8_t fault_bits = v & 0x7;
 
-		if (t & 0x80000000)
+		// Check for general fault (bit 16)
+		bool general_fault = (v >> 16) & 0x1;
+
+		// Build fault string
+		anOutResult.fault.clear();
+		if (general_fault)
 		{
-			// Negative value, drop the lower 18 bits and explicitly extend sign bits.
-			t = 0xFFFFC000 | ((t >> 18) & 0x00003FFF);
+			anOutResult.fault.emplace_back("General Fault");
 		}
-		else
+		if (fault_bits & 0x1)
 		{
-			// Positive value, just drop the lower 18 bits.
-			t >>= 18;
+			anOutResult.fault.emplace_back("Open Circuit");
 		}
-		// Serial.println(v, HEX);
-
-		anOutResult.thermocouple_c = t;
-
-		// LSB = 0.25 degrees C
-		anOutResult.thermocouple_c *= 0.25;
-
-		// ignore bottom 4 bits - they're just thermocouple data
-		cj >>= 4;
-
-		// pull the bottom 11 bits off
-		float coldJunction = cj & 0x7FF;
-		// check sign bit!
-		if (cj & 0x800)
+		if (fault_bits & 0x2)
 		{
-			// Convert to negative value by extending sign and casting to signed type.
-			int16_t tmp = 0xF800 | (cj & 0x7FF);
-			coldJunction = tmp;
+			anOutResult.fault.emplace_back("Short to GND");
 		}
-		coldJunction *= 0.0625; // LSB = 0.0625 degrees
+		if (fault_bits & 0x4)
+		{
+			anOutResult.fault.emplace_back("Short to VCC");
+		}
 
-		anOutResult.coldjunction_c = coldJunction;
+		// Thermocouple temperature (bits 31-18, 14-bit signed)
+		int32_t tc_raw = (v >> 18) & 0x3FFF;
+		if (tc_raw & 0x2000)
+		{
+			// Sign extend for negative values
+			tc_raw |= 0xFFFFC000;
+		}
+		anOutResult.thermocouple_c = tc_raw * 0.25f; // LSB = 0.25°C
+		anOutResult.thermocouple_f = (anOutResult.thermocouple_c * 1.8f) + 32.0f;
 
-		anOutResult.thermocouple_f = (1.8 * anOutResult.thermocouple_f) + 32.0;
+		// Cold junction temperature (bits 15-4, 12-bit signed)
+		int32_t cj_raw = (v >> 4) & 0xFFF; // 12 bits, not 11
+		if (cj_raw & 0x800)
+		{
+			// Sign extend for negative values
+			cj_raw |= 0xFFFFF000;
+		}
+		anOutResult.coldjunction_c = cj_raw * 0.0625f; // LSB = 0.0625°C
+		anOutResult.coldjunction_f = (anOutResult.coldjunction_c * 1.8f) + 32.0f;
 	}
 
-} // namespace MAX31856
+	uint32_t MAX31855::readRegister32()
+	{
+		spi_transaction_t trans{
+			.flags = SPI_TRANS_USE_RXDATA,
+			.length = 0,	// No TX data
+			.rxlength = 32, // Receive 32 bits (4 bytes)
+			.tx_buffer = NULL,
+			.rx_buffer = NULL};
+
+		gpio_set_level(this->myCsPin, 0);
+
+		esp_err_t ret = spi_device_transmit(mySpiDeviceHandle, &trans);
+		ESP_ERROR_CHECK(ret);
+
+		uint32_t result = (trans.rx_data[0] << 24) |
+						  (trans.rx_data[1] << 16) |
+						  (trans.rx_data[2] << 8) |
+						  trans.rx_data[3];
+
+		gpio_set_level(this->myCsPin, 1);
+		return result;
+	}
+
+} // namespace ESP_MAX318_THERMOCOUPLE

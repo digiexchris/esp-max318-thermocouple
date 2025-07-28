@@ -19,15 +19,6 @@
 namespace ESP_MAX318_THERMOCOUPLE
 {
 
-	constexpr uint8_t MAX31855_CR0_REG = 0x00;
-	constexpr uint8_t MAX31855_CR0_AUTOCONVERT = 0x80;
-	constexpr uint8_t MAX31855_CR0_1SHOT = 0x40;
-	constexpr uint8_t MAX31855_CR0_OCFAULT1 = 0x20;
-	constexpr uint8_t MAX31855_CR0_OCFAULT0 = 0x10;
-	constexpr uint8_t MAX31855_CR0_CJ = 0x08;
-	constexpr uint8_t MAX31855_CR0_FAULT = 0x04;
-	constexpr uint8_t MAX31855_CR0_FAULTCLR = 0x02;
-
 	constexpr uint8_t MAX31855_CR1_REG = 0x01;
 	constexpr uint8_t MAX31855_MASK_REG = 0x02;
 	constexpr uint8_t MAX31855_CJHF_REG = 0x03;
@@ -44,15 +35,11 @@ namespace ESP_MAX318_THERMOCOUPLE
 	constexpr uint8_t MAX31855_LTCBL_REG = 0x0E;
 	constexpr uint8_t MAX31855_SR_REG = 0x0F;
 
-	// constexpr uint8_t MAX31855_FAULT_CJRANGE = 0x80;
-	// constexpr uint8_t MAX31855_FAULT_TCRANGE = 0x40;
-	// constexpr uint8_t MAX31855_FAULT_CJHIGH = 0x20;
-	// constexpr uint8_t MAX31855_FAULT_CJLOW = 0x10;
-	// constexpr uint8_t MAX31855_FAULT_TCHIGH = 0x08;
-	// constexpr uint8_t MAX31855_FAULT_TCLOW = 0x04;
-	// constexpr uint8_t MAX31855_FAULT_OVUV = 0x02;
-	// constexpr uint8_t MAX31855_FAULT_OPEN = 0x01;
-	// constexpr uint8_t MAX31855_FAULT_
+	constexpr uint8_t MAX31855_FAULT_NONE = 0x00;	   ///< Disable all fault checks
+	constexpr uint8_t MAX31855_FAULT_OPEN = 0x01;	   ///< Enable open circuit fault check
+	constexpr uint8_t MAX31855_FAULT_SHORT_GND = 0x02; ///< Enable short to GND fault check
+	constexpr uint8_t MAX31855_FAULT_SHORT_VCC = 0x04; ///< Enable short to VCC fault check
+	constexpr uint8_t MAX31855_FAULT_ALL = 0x07;	   ///< Enable all fault checks
 
 	using MAX31855Callback = void (*)(Result *result);
 
@@ -61,10 +48,12 @@ namespace ESP_MAX318_THERMOCOUPLE
 	public:
 		MAX31855(gpio_num_t aCsPin, spi_host_device_t aHostId, const spi_device_interface_config_t &aDeviceConfig = defaultSpiDeviceConfig);
 
-		uint8_t readFault(bool logFault = false);
 		virtual void read(Result &anOutResult) override;
 
 		static const spi_device_interface_config_t defaultSpiDeviceConfig;
+
+	private:
+		uint32_t readRegister32();
 	};
 
 } // namespace MAX31855

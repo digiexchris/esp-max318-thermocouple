@@ -15,7 +15,7 @@ namespace ESP_MAX318_THERMOCOUPLE
     class SPIManager
     {
     public:
-        SPIManager(spi_host_device_t aHostId, bool aConfigureBus = true, spi_bus_config_t aBusConfig = defaultSpi3BusConfig);
+        SPIManager(spi_host_device_t aHostId, bool aConfigureBus = true, spi_bus_config_t aBusConfig = defaultSpiBusConfig);
 
         /*
         @brief Create a device of the specified type on the SPI bus.
@@ -46,13 +46,12 @@ namespace ESP_MAX318_THERMOCOUPLE
 
             return newDevice;
         }
+        static spi_bus_config_t defaultSpiBusConfig;
 
     private:
         // since we're using a common frequency, bus config, and managing the CS pin ourselves, we can use a common handle
         spi_host_device_t myHostId;
         std::shared_ptr<MAX318_Base> myDevices[3];
         uint8_t myNumDevices = 0;
-
-        static spi_bus_config_t defaultSpi3BusConfig;
     };
 }

@@ -21,16 +21,18 @@ namespace ESP_MAX318_THERMOCOUPLE
 
 		devcfg = aDeviceConfig;
 
+		devcfg.spics_io_num = aCsPin;
+
 		// Initialize the CS pin
-		gpio_config_t io_conf;
-		io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-		io_conf.intr_type = GPIO_INTR_DISABLE;
-		io_conf.pin_bit_mask = (1ULL << this->myCsPin);
-		io_conf.mode = GPIO_MODE_OUTPUT;
-		io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-		gpio_config(&io_conf);
-		gpio_set_level(this->myCsPin, 1);
-		vTaskDelay(100 / portTICK_PERIOD_MS);
+		// gpio_config_t io_conf;
+		// io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+		// io_conf.intr_type = GPIO_INTR_DISABLE;
+		// io_conf.pin_bit_mask = (1ULL << this->myCsPin);
+		// io_conf.mode = GPIO_MODE_OUTPUT;
+		// io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+		// gpio_config(&io_conf);
+		// gpio_set_level(this->myCsPin, 1);
+		// vTaskDelay(100 / portTICK_PERIOD_MS);
 
 		esp_err_t ret = spi_bus_add_device(myHostId, &devcfg, &this->mySpiDeviceHandle);
 		ESP_ERROR_CHECK(ret);
@@ -39,127 +41,84 @@ namespace ESP_MAX318_THERMOCOUPLE
 	void MAX318_Base::writeRegister(uint8_t address, uint8_t data)
 	{
 		esp_err_t ret;
-		spi_transaction_t spi_transaction;
-		memset(&spi_transaction, 0, sizeof(spi_transaction_t));
-		uint8_t tx_data[1] = {static_cast<uint8_t>(address | 0x80)};
+		spi_transaction_t spi_transaction = {};
 
-		gpio_set_level(this->myCsPin, 0);
-		spi_transaction.flags = SPI_TRANS_USE_RXDATA;
-		spi_transaction.length = 8;
+		// Single transaction: address + data
+		uint8_t tx_data[2] = {static_cast<uint8_t>(address | 0x80), data};
+
+		spi_transaction.flags = SPI_TRANS_USE_RXDATA; // Can use for ≤4 bytes
+		spi_transaction.length = 16;				  // 2 bytes * 8 bits
 		spi_transaction.tx_buffer = tx_data;
-		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
 
-		tx_data[0] = data;
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
 		ESP_ERROR_CHECK(ret);
-		gpio_set_level(this->myCsPin, 1);
 	}
 
 	uint8_t MAX318_Base::readRegister(uint8_t address)
 	{
 		esp_err_t ret;
-		spi_transaction_t spi_transaction;
-		memset(&spi_transaction, 0, sizeof(spi_transaction_t));
-		uint8_t tx_data[1] = {static_cast<uint8_t>(address & 0x7F)};
 
-		gpio_set_level(this->myCsPin, 0);
-		spi_transaction.flags = SPI_TRANS_USE_RXDATA;
-		spi_transaction.length = 8;
-		spi_transaction.tx_buffer = tx_data;
-		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
-
-		tx_data[0] = 0xFF;
-		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
-		gpio_set_level(this->myCsPin, 1);
-		uint8_t reg_value = spi_transaction.rx_data[0];
-		return reg_value;
-	}
-
-	uint8_t MAX318_Base::readFastRegister(uint8_t address)
-	{
-		esp_err_t ret;
-		spi_transaction_t spi_transaction;
-		memset(&spi_transaction, 0, sizeof(spi_transaction_t));
+		// Single transaction: address + dummy byte to get data
 		uint8_t tx_data[2] = {static_cast<uint8_t>(address & 0x7F), 0xFF};
+		uint8_t rx_data[2];
+		spi_transaction_t spi_transaction = {
+			.flags = 0,
+			.length = 16, // 2 bytes * 8 bits
+			.tx_buffer = tx_data,
+			.rx_buffer = rx_data};
 
-		gpio_set_level(this->myCsPin, 0);
-		spi_transaction.flags = SPI_TRANS_USE_RXDATA;
-		spi_transaction.length = 16;
-		spi_transaction.tx_buffer = tx_data;
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
 		ESP_ERROR_CHECK(ret);
-		gpio_set_level(this->myCsPin, 1);
-		uint8_t reg_value = spi_transaction.rx_data[0];
+
+		// Data comes back in rx_data[1] (rx_data[0] is garbage during address)
+		uint8_t reg_value = rx_data[1];
 		return reg_value;
 	}
 
 	uint16_t MAX318_Base::readRegister16(uint8_t address)
 	{
 		esp_err_t ret;
-		spi_transaction_t spi_transaction;
-		memset(&spi_transaction, 0, sizeof(spi_transaction_t));
-		uint8_t tx_data[1] = {static_cast<uint8_t>(address & 0x7F)};
 
-		gpio_set_level(this->myCsPin, 0);
-		spi_transaction.length = 8;
-		spi_transaction.flags = SPI_TRANS_USE_RXDATA;
-		spi_transaction.tx_buffer = tx_data;
+		// Single transaction: address + 2 data bytes
+		uint8_t tx_data[3] = {static_cast<uint8_t>(address & 0x7F), 0xFF, 0xFF};
+		uint8_t rx_data[3];
+		spi_transaction_t spi_transaction = {
+			.flags = 0,
+			.length = 24,
+			.rxlength = 24,
+			.tx_buffer = tx_data,
+			.rx_buffer = rx_data,
+		};
+
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
 		ESP_ERROR_CHECK(ret);
 
-		tx_data[0] = 0xFF;
-		spi_transaction.length = 8;
-		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
-		uint8_t b1 = spi_transaction.rx_data[0];
-
-		spi_transaction.length = 8;
-		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
-		uint8_t b2 = spi_transaction.rx_data[0];
-		gpio_set_level(this->myCsPin, 1);
-
-		uint16_t reg_value = ((b1 << 8) | b2);
+		// rx_data[0] is garbage during address transmission
+		// rx_data[1] is first data byte, rx_data[2] is second data byte
+		uint16_t reg_value = (rx_data[1] << 8) | rx_data[2];
 		return reg_value;
 	}
 
 	uint32_t MAX318_Base::readRegister24(uint8_t address)
 	{
 		esp_err_t ret;
-		spi_transaction_t spi_transaction;
-		memset(&spi_transaction, 0, sizeof(spi_transaction_t));
-		uint8_t tx_data[1] = {static_cast<uint8_t>(address & 0x7F)};
 
-		gpio_set_level(this->myCsPin, 0);
-		spi_transaction.length = 8;
-		spi_transaction.flags = SPI_TRANS_USE_RXDATA;
-		spi_transaction.tx_buffer = tx_data;
+		// Single transaction: address + 3 data bytes
+		uint8_t tx_data[4] = {static_cast<uint8_t>(address & 0x7F), 0xFF, 0xFF, 0xFF};
+		uint8_t rx_data[4];
+		spi_transaction_t spi_transaction = {
+			.flags = 0,
+			.length = 32,
+			.rxlength = 32,
+			.tx_buffer = tx_data,
+			.rx_buffer = rx_data,
+		};
+
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
 		ESP_ERROR_CHECK(ret);
 
-		tx_data[0] = 0xFF;
-		spi_transaction.length = 8;
-		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
-		uint8_t b1 = spi_transaction.rx_data[0];
-
-		tx_data[0] = 0xFF;
-		spi_transaction.length = 8;
-		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
-		uint8_t b2 = spi_transaction.rx_data[0];
-
-		tx_data[0] = 0xFF;
-		spi_transaction.length = 8;
-		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		ESP_ERROR_CHECK(ret);
-		uint8_t b3 = spi_transaction.rx_data[0];
-		gpio_set_level(this->myCsPin, 0);
-
-		uint32_t reg_value = ((b1 << 16) | (b2 << 8) | b3);
+		// rx_data[0] is garbage, rx_data[1-3] are the 3 data bytes
+		uint32_t reg_value = (rx_data[1] << 16) | (rx_data[2] << 8) | rx_data[3];
 		return reg_value;
 	}
 

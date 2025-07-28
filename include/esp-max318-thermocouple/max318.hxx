@@ -4,6 +4,7 @@
 #include "esp_system.h"
 #include "soc/gpio_struct.h"
 #include <string>
+#include <vector>
 
 namespace ESP_MAX318_THERMOCOUPLE
 {
@@ -13,7 +14,8 @@ namespace ESP_MAX318_THERMOCOUPLE
         float coldjunction_f;
         float thermocouple_c;
         float thermocouple_f;
-        std::string fault;
+        std::vector<std::string> fault;
+        uint8_t fault_bits; // raw fault bits from the device
     };
 
     class MAX318_Base
@@ -26,7 +28,6 @@ namespace ESP_MAX318_THERMOCOUPLE
         // generic SPI functions for any of this device class
         void writeRegister(uint8_t anAddress, uint8_t someData);
         uint8_t readRegister(uint8_t anAddress);
-        uint8_t readFastRegister(uint8_t anAddress);
         uint16_t readRegister16(uint8_t anAddress);
         uint32_t readRegister24(uint8_t anAddress);
 

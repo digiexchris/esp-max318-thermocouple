@@ -23,10 +23,10 @@ namespace ESP_MAX318_THERMOCOUPLE
         }
     }
 
-    spi_bus_config_t SPIManager::defaultSpi3BusConfig = {
-        .mosi_io_num = GPIO_NUM_32,
-        .miso_io_num = GPIO_NUM_39,
-        .sclk_io_num = GPIO_NUM_25,
+    spi_bus_config_t SPIManager::defaultSpiBusConfig = {
+        // .mosi_io_num = GPIO_NUM_32,
+        // .miso_io_num = GPIO_NUM_39,
+        // .sclk_io_num = GPIO_NUM_25,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
         .max_transfer_sz = 0,
