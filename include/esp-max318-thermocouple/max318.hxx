@@ -25,6 +25,9 @@ namespace ESP_MAX318_THERMOCOUPLE
 
         virtual void read(Result &anOutResult) = 0;
 
+        virtual void setTempFaultThreshholds(float aLow, float aHigh) = 0;
+        virtual void setColdJunctionFaultThreshholds(float aLow, float aHigh) = 0;
+
         // generic SPI functions for any of this device class
         void writeRegister(uint8_t anAddress, uint8_t someData);
         uint8_t readRegister(uint8_t anAddress);

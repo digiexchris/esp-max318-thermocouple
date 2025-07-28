@@ -62,8 +62,8 @@ namespace ESP_MAX318_THERMOCOUPLE
 		writeRegister(MAX31856_CR0_REG, cr0_val);
 
 		// set default temp thresholds for the default tc type
-		// setTempFaultThreshholds(-200.0f, 1372.0f);
-		// setColdJunctionFaultThreshholds(-125.0f, 125.0f);
+		// setTempFaultThreshholds(-270.0f, 1372.0f);
+		// setColdJunctionFaultThreshholds(-64.0f, 125.0f);
 
 		ESP_LOGI(TAG, "MAX31856 initialized successfully on CS pin %d", aCsPin);
 	}
@@ -183,34 +183,6 @@ namespace ESP_MAX318_THERMOCOUPLE
 		writeRegister(MAX31856_CR1_REG, val);
 	}
 
-	void MAX31856::oneshotTemperature()
-	{
-		uint8_t val = readRegister(MAX31856_CR0_REG);
-		val &= ~MAX31856_CR0_AUTOCONVERT;
-		val |= MAX31856_CR0_1SHOT;
-		writeRegister(MAX31856_CR0_REG, val);
-
-		// Wait for conversion to complete by checking DRDY bit
-		// or use timeout to prevent infinite loop
-		uint32_t timeout = 0;
-		const uint32_t MAX_TIMEOUT = 300; // ms
-		while (timeout < MAX_TIMEOUT)
-		{
-			uint8_t status = readRegister(MAX31856_SR_REG);
-			if (!(status & 0x80))
-			{ // DRDY bit cleared = conversion done
-				break;
-			}
-			vTaskDelay(10 / portTICK_PERIOD_MS);
-			timeout += 10;
-		}
-
-		if (timeout >= MAX_TIMEOUT)
-		{
-			ESP_LOGW(TAG, "One-shot conversion timeout");
-		}
-	}
-
 	MAX31856::ThermocoupleType MAX31856::getType()
 	{
 		uint8_t val = readRegister(MAX31856_CR1_REG);
@@ -262,14 +234,14 @@ namespace ESP_MAX318_THERMOCOUPLE
 	void MAX31856::setColdJunctionFaultThreshholds(float low, float high)
 	{
 		// MAX31856 cold junction fault thresholds: -128°C to +127°C, 1°C per LSB
-		if (low < -128.0f)
-			low = -128.0f;
-		if (low > 127.0f)
-			low = 127.0f;
-		if (high < -128.0f)
-			high = -128.0f;
-		if (high > 127.0f)
-			high = 127.0f;
+		if (low < -64.0f)
+			low = -64.0f;
+		if (low > 125.0f)
+			low = 125.0f;
+		if (high < -64.0f)
+			high = -64.0f;
+		if (high > 125.0f)
+			high = 125.0f;
 
 		int8_t low_int = static_cast<int8_t>(low);
 		int8_t high_int = static_cast<int8_t>(high);

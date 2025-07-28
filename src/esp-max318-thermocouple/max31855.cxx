@@ -23,10 +23,10 @@ namespace ESP_MAX318_THERMOCOUPLE
 
 		.dummy_bits = 0,
 		.mode = 0,
-		.clock_speed_hz = (APB_CLK_FREQ / 10), // 8 Mhz
+		.clock_speed_hz = (1000000), // 1 Mhz
 
 		.spics_io_num = -1, // Manually Control CS
-		.flags = 0,
+		.flags = SPI_DEVICE_HALFDUPLEX,
 		.queue_size = 1,
 	};
 
@@ -83,6 +83,24 @@ the device’s output data.
 		anOutResult.thermocouple_c = tc_raw * 0.25f; // LSB = 0.25°C
 		anOutResult.thermocouple_f = (anOutResult.thermocouple_c * 1.8f) + 32.0f;
 
+		if (anOutResult.thermocouple_c > myTemperatureHighThreshold)
+		{
+			anOutResult.fault.emplace_back("Thermocouple Temperature High");
+		}
+		else if (anOutResult.thermocouple_c < myTemperatureLowThreshold)
+		{
+			anOutResult.fault.emplace_back("Thermocouple Temperature Low");
+		}
+
+		if (anOutResult.coldjunction_c > myColdJunctionHighThreshold)
+		{
+			anOutResult.fault.emplace_back("Cold Junction Temperature High");
+		}
+		else if (anOutResult.coldjunction_c < myColdJunctionLowThreshold)
+		{
+			anOutResult.fault.emplace_back("Cold Junction Temperature Low");
+		}
+
 		// Cold junction temperature (bits 15-4, 12-bit signed)
 		int32_t cj_raw = (v >> 4) & 0xFFF; // 12 bits, not 11
 		if (cj_raw & 0x800)
@@ -96,25 +114,46 @@ the device’s output data.
 
 	uint32_t MAX31855::readRegister32()
 	{
+		uint8_t rx_data[4];
 		spi_transaction_t trans{
-			.flags = SPI_TRANS_USE_RXDATA,
+			.flags = 0,
 			.length = 0,	// No TX data
 			.rxlength = 32, // Receive 32 bits (4 bytes)
 			.tx_buffer = NULL,
-			.rx_buffer = NULL};
-
-		gpio_set_level(this->myCsPin, 0);
+			.rx_buffer = rx_data};
 
 		esp_err_t ret = spi_device_transmit(mySpiDeviceHandle, &trans);
 		ESP_ERROR_CHECK(ret);
 
-		uint32_t result = (trans.rx_data[0] << 24) |
-						  (trans.rx_data[1] << 16) |
-						  (trans.rx_data[2] << 8) |
-						  trans.rx_data[3];
-
-		gpio_set_level(this->myCsPin, 1);
+		uint32_t result = (rx_data[0] << 24) |
+						  (rx_data[1] << 16) |
+						  (rx_data[2] << 8) |
+						  rx_data[3];
 		return result;
+	}
+
+	void MAX31855::setTempFaultThreshholds(float aLow, float aHigh)
+	{
+		// MAX31855 temperature fault thresholds: -270°C to +1372°C, 0.25°C per LSB
+		if (aLow < -270.0f)
+			aLow = -270.0f;
+		if (aHigh > 1372.0f)
+			aHigh = 1372.0f;
+
+		myTemperatureLowThreshold = aLow;
+		myTemperatureHighThreshold = aHigh;
+	}
+
+	void MAX31855::setColdJunctionFaultThreshholds(float aLow, float aHigh)
+	{
+		// MAX31855 cold junction fault thresholds: -64°C to +125°C, 0.0625°C per LSB
+		if (aLow < -64.0f)
+			aLow = -64.0f;
+		if (aHigh > 125.0f)
+			aHigh = 125.0f;
+
+		myColdJunctionLowThreshold = aLow;
+		myColdJunctionHighThreshold = aHigh;
 	}
 
 } // namespace ESP_MAX318_THERMOCOUPLE

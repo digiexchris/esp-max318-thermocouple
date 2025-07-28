@@ -27,19 +27,16 @@ extern "C" void app_main()
 
     std::shared_ptr<ESP_MAX318_THERMOCOUPLE::MAX31856> thermocouple1 = manager.CreateDevice<ESP_MAX318_THERMOCOUPLE::MAX31856>(GPIO_NUM_15);
 
-    // std::shared_ptr<ESP_MAX318_THERMOCOUPLE::MAX31855> thermocouple2 = manager.CreateDevice<ESP_MAX318_THERMOCOUPLE::MAX31855>(GPIO_NUM_27);
-
-    // auto thermocouple3 = manager.CreateDevice<ESP_MAX318_THERMOCOUPLE::MAX31856>(GPIO_NUM_19);
+    std::shared_ptr<ESP_MAX318_THERMOCOUPLE::MAX31855> thermocouple2 = manager.CreateDevice<ESP_MAX318_THERMOCOUPLE::MAX31855>(GPIO_NUM_27);
 
     // change the thermocouple type after creating if you want to
-    // thermocouple1->setType(ESP_MAX318_THERMOCOUPLE::MAX31856::ThermocoupleType::MAX31856_TCTYPE_B);
+    thermocouple1->setType(ESP_MAX318_THERMOCOUPLE::MAX31856::ThermocoupleType::MAX31856_TCTYPE_B);
 
     // set the fault thresholds for the devices
-    // NOTE: this may not be working yet, I always see these faults set no matter what I do
-    // thermocouple1->setTempFaultThreshholds(-40, 1000);
-    // thermocouple3->setTempFaultThreshholds(0, 1370);
-    // thermocouple1->setColdJunctionFaultThreshholds(-40, 140);
-    // thermocouple3->setColdJunctionFaultThreshholds(0, 140);
+    thermocouple1->setTempFaultThreshholds(-40, 1000); // Supported by the device directly
+    thermocouple2->setTempFaultThreshholds(10, 1370);  // Emulated by this library
+    thermocouple1->setColdJunctionFaultThreshholds(-40, 140);
+    thermocouple2->setColdJunctionFaultThreshholds(0, 140);
 
     // disable some faults
     // thermocouple1->setFaultMask(ESP_MAX318_THERMOCOUPLE::MAX31856::MAX31856_FAULT_CJHIGH | ESP_MAX318_THERMOCOUPLE::MAX31856::MAX31856_FAULT_CJLOW);
@@ -57,16 +54,16 @@ extern "C" void app_main()
 
         ESP_MAX318_THERMOCOUPLE::Result result;
         thermocouple1->read(result);
-        // ESP_LOGI(TAG, "Temperature from device 1: %.2f °C", result.thermocouple_c);
+        ESP_LOGI(TAG, "Device 1 Temp: %.2f °C, %.2f °F Cold Junction: %.2f °C, %.2f °F", result.thermocouple_c, result.thermocouple_f, result.coldjunction_c, result.coldjunction_f);
+        ESP_LOGI(TAG, "Faults: %u", result.fault_bits);
+        for (const auto &fault : result.fault)
+        {
+            ESP_LOGI(TAG, "Fault: %s", fault.c_str());
+        }
 
-        // and maybe the cold junction, both in F if you like
-        // thermocouple2->read(result);
-        // ESP_LOGI(TAG, "Temperature from device 2: %.2f °F, Cold Junction: %.2f °F", result.thermocouple_f, result.coldjunction_f);
-
-        // and optionally the fault
-        // thermocouple3->read(result);
-        ESP_LOGI(TAG, "Temperature from device 3: %.2f °C, Cold Junction: %.2f °C, Fault: %u", result.thermocouple_c, result.coldjunction_c, result.fault_bits);
-
+        thermocouple2->read(result);
+        ESP_LOGI(TAG, "Device 2 Temp: %.2f °C, %.2f °F Cold Junction: %.2f °C, %.2f °F", result.thermocouple_c, result.thermocouple_f, result.coldjunction_c, result.coldjunction_f);
+        ESP_LOGI(TAG, "Faults: %u", result.fault_bits);
         for (const auto &fault : result.fault)
         {
             ESP_LOGI(TAG, "Fault: %s", fault.c_str());

@@ -41,8 +41,8 @@ namespace ESP_MAX318_THERMOCOUPLE
 		MAX31856(gpio_num_t aCsPin, spi_host_device_t aHostId, const spi_device_interface_config_t &aDeviceConfig = defaultSpiDeviceConfig);
 
 		ThermocoupleType getType();
-		void setTempFaultThreshholds(float aLow, float aHigh);
-		void setColdJunctionFaultThreshholds(float aLow, float aHigh);
+		void setTempFaultThreshholds(float aLow, float aHigh) override;
+		void setColdJunctionFaultThreshholds(float aLow, float aHigh) override;
 		uint8_t readFault(bool logFault = false);
 		virtual void read(Result &anOutResult) override;
 		void setType(ThermocoupleType aType);

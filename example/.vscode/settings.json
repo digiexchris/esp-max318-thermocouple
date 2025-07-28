@@ -2,18 +2,18 @@
   "idf.espIdfPath": "/home/chris/esp/v5.4.2/esp-idf",
   "idf.toolsPath": "/home/chris/.espressif",
   "idf.pythonInstallPath": "/usr/bin/python3",
-  "idf.flashType": "JTAG",
-  "idf.port": "/dev/ttyACM0",
+  "idf.flashType": "UART",
+  "idf.port": "/dev/ttyUSB0",
   "idf.openOcdConfigs": [
-    "board/esp32s3-builtin.cfg"
+    "board/esp32-wrover-kit-3.3v.cfg"
   ],
   "idf.customExtraVars": {
-    "IDF_TARGET": "esp32s3"
+    "IDF_TARGET": "esp32"
   },
   "clangd.path": "/home/chris/.espressif/tools/esp-clang/esp-18.1.2_20240912/esp-clang/bin/clangd",
   "clangd.arguments": [
     "--background-index",
-    "--query-driver=/home/chris/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc",
+    "--query-driver=/home/chris/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32-elf-gcc",
     "--compile-commands-dir=/home/chris/repos/max31856-espidf/example/build"
   ]
 }
