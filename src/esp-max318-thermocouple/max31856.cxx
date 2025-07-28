@@ -34,21 +34,18 @@ namespace ESP_MAX318_THERMOCOUPLE
 		: MAX318_Base(aCsPin, aHostId, aDeviceConfig)
 	{
 
-		// set default cold junction temperature offset
-		writeRegister(MAX31856_CJTO_REG, 0x00);
-
 		// // Set the MASK to 0xFF to disable all fault detection to test spi communication
+		writeRegister(MAX31856_MASK_REG, MAX31856_FAULT_ALL);
+
+		// // Validate device communication by reading a known register
+		uint8_t mask_reg = readRegister(MAX31856_MASK_REG);
+		if (mask_reg != MAX31856_FAULT_ALL)
+		{ // All bits set might indicate no communication
+			ESP_LOGW(TAG, "Warning: setup returned unexpected values %02X, check SPI connection", mask_reg);
+		}
+
+		// turn them all back on again
 		writeRegister(MAX31856_MASK_REG, MAX31856_FAULT_NONE);
-
-		// // // Validate device communication by reading a known register
-		// uint8_t mask_reg = readRegister(MAX31856_MASK_REG);
-		// if (mask_reg != MAX31856_FAULT_ALL)
-		// { // All bits set might indicate no communication
-		// 	ESP_LOGW(TAG, "Warning: setup returned unexpected values %02X, check SPI connection", mask_reg);
-		// }
-
-		// // turn them all back on again
-		// writeRegister(MAX31856_MASK_REG, MAX31856_FAULT_NONE);
 
 		// Clear any existing faults
 		uint8_t cr0_val = readRegister(MAX31856_CR0_REG);
@@ -59,13 +56,14 @@ namespace ESP_MAX318_THERMOCOUPLE
 
 		// Enable autoconvert mode
 		cr0_val = readRegister(MAX31856_CR0_REG);
-		cr0_val |= MAX31856_CR0_AUTOCONVERT;
-		cr0_val &= ~MAX31856_CR0_1SHOT;
+		cr0_val |= MAX31856_CR0_AUTOCONVERT; // Enable auto-convert mode
+		cr0_val &= ~MAX31856_CR0_1SHOT;		 // Disable one-shot mode
+		cr0_val &= ~MAX31856_CR0_CJ;		 // Clear CJ bit = use internal CJ
 		writeRegister(MAX31856_CR0_REG, cr0_val);
 
 		// set default temp thresholds for the default tc type
-		setTempFaultThreshholds(-200.0f, 1372.0f);
-		setColdJunctionFaultThreshholds(-125.0f, 125.0f);
+		// setTempFaultThreshholds(-200.0f, 1372.0f);
+		// setColdJunctionFaultThreshholds(-125.0f, 125.0f);
 
 		ESP_LOGI(TAG, "MAX31856 initialized successfully on CS pin %d", aCsPin);
 	}
