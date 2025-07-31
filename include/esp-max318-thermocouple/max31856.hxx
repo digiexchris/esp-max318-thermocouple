@@ -39,19 +39,69 @@ namespace ESP_MAX318_THERMOCOUPLE
 			MAX31856_TCTYPE_UNKNOWN = 0xFF // Unknown type
 		};
 
-		MAX31856(gpio_num_t aCsPin, spi_host_device_t aHostId, const spi_device_interface_config_t &aDeviceConfig = defaultSpiDeviceConfig);
+		//Note: in one_shot mode, an OC Fault check happens every conversion. In auto convert mode, it happens every 16th conversion. Auto convert works well with a sample average of 16 this way
+		enum class OCFaultConfig
+		{
+			NONE = 0x00,
+			OC_01 = 0x01, // for a thermocouple network less than 5k ohms
+			OC_10 = 0x02, // for a thermocouple network greater than 5k ohms and less than 40k ohms with a time constant less than 2ms
+			OC_11 = 0x03  // for a thermocouple network greater than 5k ohms and less than 40k ohms with a time constant greater than 2ms
+		};
+
+		struct MAX31856Config : MAX318Config
+		{
+			float temp_fault_low;				// Low temperature fault threshold
+			float temp_fault_high;				// High temperature fault threshold
+			float cold_junction_fault_low;		// Low cold junction fault threshold
+			float cold_junction_fault_high;		// High cold junction fault threshold
+			AveragingSamples averaging_samples; // 1, 2, 4, 8, or 16 samples for averaging
+			ThermocoupleType type;				// Thermocouple type
+			uint8_t fault_mask;					// Fault mask for disabling some fault checks
+			float cold_junction_offset;			// Cold junction offset in Celsius, within a range of -8°C to +7.9375°C
+			bool auto_convert;					// Auto convert mode, else 1-shot mode
+			OCFaultConfig oc_fault_type;
+		};
+
+		static constexpr spi_device_interface_config_t defaultSpiDeviceConfig = {
+
+			.command_bits = 0, // Default command bits
+			.address_bits = 0, // Default address bits
+			.dummy_bits = 0,
+			.mode = 1,									// Mode 1 is required by the MAX31856
+			.clock_source = SPI_CLK_SRC_DEFAULT,		// Default clock source
+			.duty_cycle_pos = 0,						// default duty cycle
+			.cs_ena_pretrans = 0,						// No pre-transmission CS enable
+			.cs_ena_posttrans = 0,						// No post-transmission CS enable
+			.clock_speed_hz = (1000000),				// 1 Mhz
+			.input_delay_ns = 0,						// No input delay (default)
+			.sample_point = SPI_SAMPLING_POINT_PHASE_0, // Default sampling point
+			.spics_io_num = 27,
+			.flags = 0,
+			.queue_size = 1,
+			.pre_cb = nullptr,
+			.post_cb = nullptr,
+		};
+
+		static constexpr MAX31856Config defaultConfig = {
+			.temp_fault_low = -270.0f,
+			.temp_fault_high = 1372.0f,
+			.cold_junction_fault_low = -64.0f,
+			.cold_junction_fault_high = 125.0f,
+			.averaging_samples = AveragingSamples::AVG_16,
+			.type = ThermocoupleType::MAX31856_TCTYPE_K,
+			.fault_mask = 0xFF,
+			.cold_junction_offset = 0.0f,
+			.auto_convert = true,
+			.oc_fault_type = OCFaultConfig::OC_01,
+		};
+
+		MAX31856(spi_device_interface_config_t aSpiDeviceConfig);
+
+		bool configure(const MAX318Config *aConfig, const spi_device_handle_t &aHandle);
 
 		ThermocoupleType getType(int &anOutError);
-		bool setTempFaultThreshholds(float aLow, float aHigh, int &anOutError) override;
-		bool setColdJunctionFaultThreshholds(float aLow, float aHigh, int &anOutError) override;
-		virtual bool read(Result &anOutResult) override;
-		bool setType(ThermocoupleType aType, int &anOutError);
-		bool setColdJunctionOffset(float anOffsetCelsius, int &anOutError);
-		bool setFaultMask(uint8_t aMask, int &anOutError);
-		uint8_t readFaultMask(int &anOutError);
-		bool setAveragingMode(uint8_t anAveragingMode, int &anOutError);
 
-		static const spi_device_interface_config_t defaultSpiDeviceConfig;
+		virtual bool read(Result &anOutResult) override;
 
 		const uint8_t MAX31856_CR0_REG = 0x00;
 		const uint8_t MAX31856_CR0_AUTOCONVERT = 0x80;
@@ -107,7 +157,17 @@ namespace ESP_MAX318_THERMOCOUPLE
 		static const uint8_t MAX31856_FAULT_ALL = 0xFF;
 
 	private:
-		void oneshotTemperature();
+		bool setConvertType(bool isAutoConvert, int &anOutError);
+		bool setTempFaultThreshholds(float aLow, float aHigh, int &anOutError);
+		bool setColdJunctionFaultThreshholds(float aLow, float aHigh, int &anOutError);
+		bool oneShotTemperature(int &anOutError);
+		bool setType(ThermocoupleType aType, int &anOutError);
+		bool setColdJunctionOffset(float anOffsetCelsius, int &anOutError);
+		bool setFaultMask(uint8_t aMask, int &anOutError);
+		uint8_t readFaultMask(int &anOutError);
+		bool setAveragingMode(AveragingSamples aSamples, int &anOutError);
+
+		MAX31856Config myConfig;
 	};
 
 } // namespace MAX31856

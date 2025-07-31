@@ -35,34 +35,46 @@ namespace ESP_MAX318_THERMOCOUPLE
         static const uint8_t SPI_ERR_UNKNOWN = 9;
     };
 
+    enum class AveragingSamples
+    {
+        AVG_1,
+        AVG_2,
+        AVG_4,
+        AVG_8,
+        AVG_16
+    };
+
+    struct MAX318Config // used as an interface for CreateDevice
+    {
+    };
+
+    /**
+     * @brief Base class for MAX318 devices
+     *
+     * This class provides a common interface for MAX318 devices, allowing SPI communication and basic register operations.
+     * Derived classes should implement the read method to retrieve temperature data.
+     */
     class MAX318_Base
     {
     public:
-        MAX318_Base(gpio_num_t aCsPin, spi_host_device_t aHostId, const spi_device_interface_config_t &aDeviceConfig);
+        MAX318_Base(spi_device_interface_config_t aSpiDeviceConfig);
 
         virtual bool read(Result &anOutResult) = 0;
 
-        virtual bool setTempFaultThreshholds(float aLow, float aHigh, int &anOutError) = 0;
-        virtual bool setColdJunctionFaultThreshholds(float aLow, float aHigh, int &anOutError) = 0;
+        virtual bool configure(const MAX318Config *aConfig, const spi_device_handle_t &aHandle)
+        {
+            // Default implementation does nothing
+            mySpiDeviceHandle = aHandle;
+            return true;
+        }
 
+    protected:
         // generic SPI functions for any of this device class
         // anOutError is an esp_err_t error code
         void writeRegister(uint8_t anAddress, uint8_t someData, int &anOutError);
         uint8_t readRegister(uint8_t anAddress, int &anOutError);
         uint16_t readRegister16(uint8_t anAddress, int &anOutError);
         uint32_t readRegister24(uint8_t anAddress, int &anOutError);
-
-    protected:
-        gpio_num_t myCsPin;
-        spi_device_interface_config_t devcfg;
-        spi_host_device_t myHostId;
         spi_device_handle_t mySpiDeviceHandle;
     };
-
-    enum class MAX318Type
-    {
-        MAX31855,
-        MAX31856,
-    };
-
 }

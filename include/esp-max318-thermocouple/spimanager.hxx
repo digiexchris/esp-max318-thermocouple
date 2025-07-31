@@ -15,23 +15,10 @@ namespace ESP_MAX318_THERMOCOUPLE
     class SPIManager
     {
     public:
-        SPIManager(spi_host_device_t aHostId, bool aConfigureBus = true, spi_bus_config_t aBusConfig = defaultSpiBusConfig);
+        SPIManager(spi_host_device_t aHostId, spi_bus_config_t aBusConfig = {}, bool aConfigureBus = true);
 
-        /*
-        @brief Create a device of the specified type on the SPI bus.
-        @param Derived The type of MAX318 device to create.
-        @param aCsPin The GPIO pin number for the Chip Select (CS) line.
-        @return A shared pointer to the created device.
-        @note The function will assert if more than 3 devices are already created on the bus
-
-        Example usage:
-
-        auto thermocouple1 = manager.CreateDevice<MAX31856>(GPIO_NUM_5);
-        auto thermocouple2 = manager.CreateDevice<MAX31855>(GPIO_NUM_18);
-        std::shared_ptr<MAX31856> thermocouple3 = manager.CreateDevice<MAX31856>(GPIO_NUM_19);
-        */
         template <typename Derived>
-        std::shared_ptr<Derived> CreateDevice(gpio_num_t aCsPin)
+        std::shared_ptr<Derived> CreateDevice(const MAX318Config &aConfig, const spi_device_interface_config_t &anSpiDeviceConfig)
         {
             if (myNumDevices == 3)
             {
@@ -39,17 +26,21 @@ namespace ESP_MAX318_THERMOCOUPLE
                 assert(false);
             }
 
-            std::shared_ptr<Derived> newDevice = std::make_shared<Derived>(aCsPin, myHostId);
+            spi_device_handle_t handle;
+            esp_err_t ret = spi_bus_add_device(myHostId, &anSpiDeviceConfig, &handle);
+            assert(ret == ESP_OK);
+
+            std::shared_ptr<Derived> newDevice = std::make_shared<Derived>(anSpiDeviceConfig);
+
+            newDevice->configure(&aConfig, handle);
 
             this->myDevices[myNumDevices] = newDevice;
             this->myNumDevices++;
 
             return newDevice;
         }
-        static spi_bus_config_t defaultSpiBusConfig;
 
     private:
-        // since we're using a common frequency, bus config, and managing the CS pin ourselves, we can use a common handle
         spi_host_device_t myHostId;
         std::shared_ptr<MAX318_Base> myDevices[3];
         uint8_t myNumDevices = 0;

@@ -19,20 +19,16 @@ namespace ESP_MAX318_THERMOCOUPLE
 
 	const char *TAG = "MAX31856";
 
-	const spi_device_interface_config_t MAX31856::defaultSpiDeviceConfig = {
-
-		.dummy_bits = 0,
-		.mode = 1,
-		.clock_speed_hz = (1000000), // 1 Mhz
-
-		.spics_io_num = -1, // Manually Control CS
-		.flags = 0,
-		.queue_size = 1,
-	};
-
-	MAX31856::MAX31856(gpio_num_t aCsPin, spi_host_device_t aHostId, const spi_device_interface_config_t &aDeviceConfig)
-		: MAX318_Base(aCsPin, aHostId, aDeviceConfig)
+	MAX31856::MAX31856(spi_device_interface_config_t aSpiDeviceConfig)
+		: MAX318_Base(aSpiDeviceConfig)
 	{
+		assert(aSpiDeviceConfig.mode == 1); // Mode 1 is required by the MAX31856
+	}
+
+	bool MAX31856::configure(const MAX318Config *aConfig, const spi_device_handle_t &aHandle)
+	{
+		myConfig = *static_cast<const MAX31856Config *>(aConfig);
+		mySpiDeviceHandle = aHandle;
 
 		int error = 0;
 
@@ -49,7 +45,7 @@ namespace ESP_MAX318_THERMOCOUPLE
 		}
 
 		// turn them all back on again
-		writeRegister(MAX31856_MASK_REG, MAX31856_FAULT_NONE, error);
+		writeRegister(MAX31856_MASK_REG, myConfig.fault_mask, error);
 		assert(error == 0);
 
 		// Clear any existing faults
@@ -62,18 +58,65 @@ namespace ESP_MAX318_THERMOCOUPLE
 		setType(ThermocoupleType::MAX31856_TCTYPE_K, error); // Default to K type thermocouple
 		assert(error == 0);
 
-		// Enable autoconvert mode
+		// The device should be in one-shot mode in order to set averaging samples
+		setConvertType(false, error);
+		assert(error == 0);
+
+		setAveragingMode(myConfig.averaging_samples, error);
+		assert(error == 0);
+
+		if (myConfig.auto_convert)
+		{
+			// If auto convert mode is enabled, set the device to auto convert
+			setConvertType(true, error);
+			assert(error == 0);
+		}
+
+		// Ensure internal CJ temp sensor is enabled
 		cr0_val = readRegister(MAX31856_CR0_REG, error);
 		assert(error == 0);
-		cr0_val |= MAX31856_CR0_AUTOCONVERT; // Enable auto-convert mode
-		cr0_val &= ~MAX31856_CR0_1SHOT;		 // Disable one-shot mode
-		cr0_val &= ~MAX31856_CR0_CJ;		 // Clear CJ bit = use internal CJ
+		cr0_val &= ~MAX31856_CR0_CJ; // Clear CJ bit = use internal CJ
 		writeRegister(MAX31856_CR0_REG, cr0_val, error);
 		assert(error == 0);
 
-		// set default temp thresholds for the default tc type
-		// setTempFaultThreshholds(-270.0f, 1372.0f);
-		// setColdJunctionFaultThreshholds(-64.0f, 125.0f);
+		// set default temp thresholds for the tc type
+		setTempFaultThreshholds(myConfig.temp_fault_low, myConfig.temp_fault_high, error);
+		setColdJunctionFaultThreshholds(myConfig.cold_junction_fault_high, myConfig.cold_junction_fault_low, error);
+
+		return true;
+	}
+
+	bool MAX31856::setConvertType(bool isAutoConvert, int &anOutError)
+	{
+		esp_err_t ret;
+		anOutError = ESP_OK;
+
+		uint8_t cr0_val = readRegister(MAX31856_CR0_REG, ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false;
+		}
+
+		if (isAutoConvert)
+		{
+			cr0_val |= MAX31856_CR0_AUTOCONVERT; // Enable auto-convert mode
+			cr0_val &= ~MAX31856_CR0_1SHOT;		 // Disable one-shot mode
+		}
+		else
+		{
+			cr0_val &= ~MAX31856_CR0_AUTOCONVERT; // Disable auto-convert mode
+			cr0_val |= MAX31856_CR0_1SHOT;		  // Enable one-shot mode
+		}
+
+		writeRegister(MAX31856_CR0_REG, cr0_val, ret);
+		if (ret != ESP_OK)
+		{
+			anOutError = ret;
+			return false;
+		}
+
+		return true;
 	}
 
 	bool MAX31856::setTempFaultThreshholds(float low, float high, int &anOutError)
@@ -134,6 +177,51 @@ namespace ESP_MAX318_THERMOCOUPLE
 		return readRegister(MAX31856_MASK_REG, anOuterror);
 	}
 
+	bool MAX31856::oneShotTemperature(int &anOutError)
+	{
+		uint8_t val = readRegister(MAX31856_CR0_REG, anOutError);
+		if (anOutError != ESP_OK)
+		{
+			return false; // Return on error
+		}
+
+		val &= ~MAX31856_CR0_AUTOCONVERT;
+		val |= MAX31856_CR0_1SHOT;
+		writeRegister(MAX31856_CR0_REG, val, anOutError);
+		if (anOutError != ESP_OK)
+		{
+			return false; // Return on error
+		}
+
+		// Wait for conversion to complete by checking DRDY bit
+		// or use timeout to prevent infinite loop
+		uint32_t timeout = 0;
+		const uint32_t MAX_TIMEOUT = 300; // ms
+		while (timeout < MAX_TIMEOUT)
+		{
+			uint8_t status = readRegister(MAX31856_SR_REG, anOutError);
+			if (anOutError != ESP_OK)
+			{
+				return false; // Return on error
+			}
+
+			if (!(status & 0x80))
+			{ // DRDY bit cleared = conversion done
+				break;
+			}
+			vTaskDelay(10 / portTICK_PERIOD_MS);
+			timeout += 10;
+		}
+
+		if (timeout >= MAX_TIMEOUT)
+		{
+			ESP_LOGW(TAG, "One-shot conversion timeout");
+			return false;
+		}
+
+		return true;
+	}
+
 	bool MAX31856::read(Result &anOutResult)
 	{
 
@@ -142,7 +230,18 @@ namespace ESP_MAX318_THERMOCOUPLE
 
 		esp_err_t ret;
 
-		// oneshotTemperature();
+		if (!myConfig.auto_convert)
+		{
+			// If not in auto convert mode, trigger a one-shot temperature read
+			oneShotTemperature(ret);
+			if (ret != ESP_OK)
+			{
+				anOutResult.spi_success = false;
+				anOutResult.error_code = ret;
+				return false; // Return on error
+			}
+		}
+
 		uint16_t cj_temp = readRegister16(MAX31856_CJTH_REG, ret);
 		if (ret != ESP_OK)
 		{
@@ -279,8 +378,31 @@ namespace ESP_MAX318_THERMOCOUPLE
 		return true;
 	}
 
-	bool MAX31856::setAveragingMode(uint8_t anAveragingMode, int &anOutError)
+	bool MAX31856::setAveragingMode(AveragingSamples aSamples, int &anOutError)
 	{
+		uint8_t anAveragingMode = 0;
+
+		switch (aSamples)
+		{
+		case AveragingSamples::AVG_1:
+			anAveragingMode = MAX31856_CR1_AVG_MODE_1;
+			break;
+		case AveragingSamples::AVG_2:
+			anAveragingMode = MAX31856_CR1_AVG_MODE_2;
+			break;
+		case AveragingSamples::AVG_4:
+			anAveragingMode = MAX31856_CR1_AVG_MODE_4;
+			break;
+		case AveragingSamples::AVG_8:
+			anAveragingMode = MAX31856_CR1_AVG_MODE_8;
+			break;
+		case AveragingSamples::AVG_16:
+			anAveragingMode = MAX31856_CR1_AVG_MODE_16;
+			break;
+		default:
+			anOutError = ESP_ERR_INVALID_ARG; // Invalid averaging mode
+			return false;
+		}
 		esp_err_t ret;
 		uint8_t val = readRegister(MAX31856_CR1_REG, ret);
 		if (ret != ESP_OK)
@@ -298,24 +420,6 @@ namespace ESP_MAX318_THERMOCOUPLE
 		}
 
 		return true;
-	}
-
-	MAX31856::ThermocoupleType MAX31856::getType(int &anOutError)
-	{
-		esp_err_t ret;
-		anOutError = ESP_OK;
-		uint8_t val = readRegister(MAX31856_CR1_REG, ret);
-		if (ret != ESP_OK)
-		{
-			anOutError = ret;
-			return ThermocoupleType::MAX31856_TCTYPE_UNKNOWN;
-		}
-
-		val &= 0x0F;
-
-		ThermocoupleType type = static_cast<ThermocoupleType>(val);
-
-		return type;
 	}
 
 	bool MAX31856::setColdJunctionFaultThreshholds(float low, float high, int &anOutError)

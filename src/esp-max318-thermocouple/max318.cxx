@@ -16,26 +16,10 @@
 
 namespace ESP_MAX318_THERMOCOUPLE
 {
-	MAX318_Base::MAX318_Base(gpio_num_t aCsPin, spi_host_device_t aHostId, const spi_device_interface_config_t &aDeviceConfig) : myCsPin(aCsPin), myHostId(aHostId)
+	MAX318_Base::MAX318_Base(spi_device_interface_config_t aSpiDeviceConfig)
+		: mySpiDeviceHandle(nullptr)
 	{
-
-		devcfg = aDeviceConfig;
-
-		devcfg.spics_io_num = aCsPin;
-
-		// Initialize the CS pin
-		// gpio_config_t io_conf;
-		// io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-		// io_conf.intr_type = GPIO_INTR_DISABLE;
-		// io_conf.pin_bit_mask = (1ULL << this->myCsPin);
-		// io_conf.mode = GPIO_MODE_OUTPUT;
-		// io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-		// gpio_config(&io_conf);
-		// gpio_set_level(this->myCsPin, 1);
-		// vTaskDelay(100 / portTICK_PERIOD_MS);
-
-		esp_err_t ret = spi_bus_add_device(myHostId, &devcfg, &this->mySpiDeviceHandle);
-		ESP_ERROR_CHECK(ret);
+		assert(aSpiDeviceConfig.spics_io_num >= 0); // CS pin must be set
 	}
 
 	void MAX318_Base::writeRegister(uint8_t address, uint8_t data, int &anOutError)
@@ -52,7 +36,8 @@ namespace ESP_MAX318_THERMOCOUPLE
 		spi_transaction.tx_buffer = tx_data;
 
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		if (ret != ESP_OK) {
+		if (ret != ESP_OK)
+		{
 			anOutError = ret;
 			return;
 		}
@@ -66,14 +51,19 @@ namespace ESP_MAX318_THERMOCOUPLE
 		// Single transaction: address + dummy byte to get data
 		uint8_t tx_data[2] = {static_cast<uint8_t>(address & 0x7F), 0xFF};
 		uint8_t rx_data[2];
-		spi_transaction_t spi_transaction = {
-			.flags = 0,
-			.length = 16, // 2 bytes * 8 bits
-			.tx_buffer = tx_data,
-			.rx_buffer = rx_data};
+		spi_transaction_t spi_transaction = {.flags = 0,
+											 .cmd = 0,	   // No command
+											 .addr = 0,	   // No address
+											 .length = 16, // 2 bytes * 8 bits
+														   //  .rx_length = 16, // 2 bytes * 8 bits
+											 .rxlength = 16, // 2 bytes * 8 bits				   		
+											 .user = NULL,
+											 .tx_buffer = tx_data,
+											 .rx_buffer = rx_data};
 
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		if (ret != ESP_OK) {
+		if (ret != ESP_OK)
+		{
 			anOutError = ret;
 			return 0;
 		}
@@ -93,14 +83,18 @@ namespace ESP_MAX318_THERMOCOUPLE
 		uint8_t rx_data[3];
 		spi_transaction_t spi_transaction = {
 			.flags = 0,
+			.cmd = 0,  // No command
+			.addr = 0, // No address
 			.length = 24,
 			.rxlength = 24,
+			.user = NULL,
 			.tx_buffer = tx_data,
 			.rx_buffer = rx_data,
 		};
 
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		if(ret != ESP_OK) {
+		if (ret != ESP_OK)
+		{
 			anOutError = ret;
 			return 0;
 		}
@@ -122,14 +116,18 @@ namespace ESP_MAX318_THERMOCOUPLE
 		uint8_t rx_data[4];
 		spi_transaction_t spi_transaction = {
 			.flags = 0,
+			.cmd = 0,  // No command
+			.addr = 0, // No address
 			.length = 32,
 			.rxlength = 32,
+			.user = NULL,
 			.tx_buffer = tx_data,
 			.rx_buffer = rx_data,
 		};
 
 		ret = spi_device_transmit(mySpiDeviceHandle, &spi_transaction);
-		if (ret != ESP_OK) {
+		if (ret != ESP_OK)
+		{
 			anOutError = ret;
 			return 0;
 		}
