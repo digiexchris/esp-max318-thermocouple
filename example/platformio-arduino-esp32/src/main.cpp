@@ -1,105 +1,88 @@
+#include "esp-max318-thermocouple/max31855.hxx"
+#include "esp-max318-thermocouple/max31856.hxx"
+#include "esp-max318-thermocouple/spimanager.hxx"
 #include <Arduino.h>
 #include <memory>
-#include "esp-max318-thermocouple/max31856.hxx"
-#include "esp-max318-thermocouple/max31855.hxx"
-#include "esp-max318-thermocouple/spimanager.hxx"
 
 static const char *TAG = "MAX31856_Example";
 
-ESP_MAX318_THERMOCOUPLE::SPIManager *manager = nullptr;
+using namespace ESP_MAX318_THERMOCOUPLE;
 
-std::shared_ptr<ESP_MAX318_THERMOCOUPLE::MAX31856> thermocouple1 = nullptr;
-std::shared_ptr<ESP_MAX318_THERMOCOUPLE::MAX31856> thermocouple2 = nullptr;
-std::shared_ptr<ESP_MAX318_THERMOCOUPLE::MAX31855> thermocouple3 = nullptr;
+SPIManager *manager = nullptr;
 
-void setup()
-{
-    Serial.begin(115200);
+std::shared_ptr<MAX31856> thermocouple1 = nullptr;
+std::shared_ptr<MAX31855> thermocouple2 = nullptr;
 
-    Serial.printf("Starting MAX31856 Example Application (Compiled: %s %s)", __DATE__, __TIME__);
+// see the esp-idf example for a more complete example.
 
-    // attach the manager to HSPI
-    // ESP_MAX318_THERMOCOUPLE::SPIManager manager(HSPI_HOST);
+void setup() {
+  Serial.begin(115200);
 
-    // or, change pins:
-    auto spiconfig = ESP_MAX318_THERMOCOUPLE::SPIManager::defaultSpiBusConfig;
-    spiconfig.mosi_io_num = GPIO_NUM_13;
-    spiconfig.miso_io_num = GPIO_NUM_12;
-    spiconfig.sclk_io_num = GPIO_NUM_14;
-    manager = new ESP_MAX318_THERMOCOUPLE::SPIManager(SPI3_HOST, true, spiconfig);
+  Serial.printf("Starting MAX31856 Example Application (Compiled: %s %s)",
+                __DATE__, __TIME__);
 
-    // register a few MAX31856 devices, different CS pin for each device on the same bus
-    // the esp32 supports only up to 3 devices on the same bus
+  // attach the manager to HSPI
+  // SPIManager manager(HSPI_HOST);
 
-    thermocouple1 = manager->CreateDevice<ESP_MAX318_THERMOCOUPLE::MAX31856>(GPIO_NUM_15);
+  // or, change pins:
+  auto spiconfig = SPIManager::defaultBusConfig;
+  spiconfig.mosi_io_num = GPIO_NUM_13;
+  spiconfig.miso_io_num = GPIO_NUM_12;
+  spiconfig.sclk_io_num = GPIO_NUM_14;
+  manager = new SPIManager(SPI2_HOST, spiconfig);
 
-    thermocouple2 = manager->CreateDevice<ESP_MAX318_THERMOCOUPLE::MAX31856>(GPIO_NUM_5);
+  // register a few MAX31856 devices, different CS pin for each device on the
+  // same bus the esp32 supports only up to 3 devices on the same bus
 
-    thermocouple3 = manager->CreateDevice<ESP_MAX318_THERMOCOUPLE::MAX31855>(GPIO_NUM_4);
+  spi_device_interface_config_t device1SpiConfig =
+      MAX31856::defaultSpiDeviceConfig;
+  device1SpiConfig.spics_io_num = 27;
 
-    // change the thermocouple type after creating if you want to
-    // thermocouple1->setType(ESP_MAX318_THERMOCOUPLE::MAX31856::ThermocoupleType::MAX31856_TCTYPE_B);
-    // thermocouple2->setType(ESP_MAX318_THERMOCOUPLE::MAX31856::ThermocoupleType::MAX31856_TCTYPE_K);
+  MAX31856::MAX31856Config device1Config;
 
-    int ret = 0; //this ends up being an esp_err_t error code
-    // set the fault thresholds for the devices
-    thermocouple1->setTempFaultThreshholds(-40, 1000, ret); // Supported by the device directly
-    assert(ret == 0);
+  thermocouple1 =
+      manager->CreateDevice<MAX31856>(device1Config, device1SpiConfig);
 
-    thermocouple3->setTempFaultThreshholds(10, 1370, ret);  // Emulated by this library
-    assert(ret == 0);
-    thermocouple1->setColdJunctionFaultThreshholds(-40, 140, ret);
-    assert(ret == 0);
-    thermocouple2->setColdJunctionFaultThreshholds(0, 140, ret);
-    assert(ret == ESP_OK); //should be usable, see esp_err_t for the codes.
+  // the max31855 has less options than the 56, see the appropriate headers
+  MAX31855::MAX31855Config device2Config; // defaults
+  device2Config.averaging_samples = AveragingSamples::AVG_1;
+  auto device2SpiConfig = MAX31855::defaultSpiDeviceConfig;
+  device2SpiConfig.spics_io_num = 15;
 
-    // disable some faults
-    // thermocouple1->setFaultMask(ESP_MAX318_THERMOCOUPLE::MAX31856::MAX31856_FAULT_CJHIGH | ESP_MAX318_THERMOCOUPLE::MAX31856::MAX31856_FAULT_CJLOW);
-
-    // or turn them all off
-    // thermocouple1->setFaultMask(ESP_MAX318_THERMOCOUPLE::MAX31856::MAX31856_FAULT_ALL);
+  thermocouple2 =
+      manager->CreateDevice<MAX31855>(device2Config, device2SpiConfig);
 }
 
-void loop()
-{
+void loop() {
 
-    // read the temperature
+  // read the temperature
 
-    Serial.printf("\n\r\n\r");
+  Serial.printf("\n\r\n\r");
 
-    ESP_MAX318_THERMOCOUPLE::Result result;
-    thermocouple1->read(result);
-    Serial.printf("Device 1 Temp: %.2f °C, %.2f °F Cold Junction: %.2f °C, %.2f °F", result.thermocouple_c, result.thermocouple_f, result.coldjunction_c, result.coldjunction_f);
-    Serial.printf("Faults: %u", result.fault_bits);
-    for (const auto &fault : result.fault)
-    {
-        Serial.printf("Fault: %s", fault.c_str());
-    }
+  Result result;
+  thermocouple1->read(result);
+  Serial.printf(
+      "Device 1 Temp: %.2f °C, %.2f °F Cold Junction: %.2f °C, %.2f °F",
+      result.thermocouple_c, result.thermocouple_f, result.coldjunction_c,
+      result.coldjunction_f);
+  Serial.printf("Faults: %u", result.fault_bits);
+  for (const auto &fault : result.fault) {
+    Serial.printf("Fault: %s", fault.c_str());
+  }
 
-    Serial.printf("\n\r");
+  Serial.printf("\n\r");
 
-    thermocouple2->read(result);
-    Serial.printf("Device 2 Temp: %.2f °C, %.2f °F Cold Junction: %.2f °C, %.2f °F", result.thermocouple_c, result.thermocouple_f, result.coldjunction_c, result.coldjunction_f);
-    Serial.printf("Faults: %u", result.fault_bits);
-    for (const auto &fault : result.fault)
-    {
-        Serial.printf("Fault: %s", fault.c_str());
-    }
+  thermocouple2->read(result);
+  Serial.printf(
+      "Device 2 Temp: %.2f °C, %.2f °F Cold Junction: %.2f °C, %.2f °F",
+      result.thermocouple_c, result.thermocouple_f, result.coldjunction_c,
+      result.coldjunction_f);
+  Serial.printf("Faults: %u", result.fault_bits);
+  for (const auto &fault : result.fault) {
+    Serial.printf("Fault: %s", fault.c_str());
+  }
 
-    Serial.printf("\n\r");
+  Serial.printf("\n\r");
 
-    thermocouple3->read(result);
-    Serial.printf("Device 3 Temp: %.2f °C, %.2f °F Cold Junction: %.2f °C, %.2f °F", result.thermocouple_c, result.thermocouple_f, result.coldjunction_c, result.coldjunction_f);
-    Serial.printf("Faults: %u", result.fault_bits);
-    for (const auto &fault : result.fault)
-    {
-        Serial.printf("Fault: %s", fault.c_str());
-    }
-    Serial.printf( "SPI Transaction probably succeeded %s\n\r", result.spi_success ? "true" : "false");
-    if (!result.spi_success)
-    {
-        Serial.printf("Error Code: %d", result.error_code);
-    }
-
-    delay(1000); // wait for a second before the next read
+  delay(1000);
 }

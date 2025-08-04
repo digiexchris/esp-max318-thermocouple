@@ -70,14 +70,18 @@ public:
       .command_bits = 0, // Default command bits
       .address_bits = 0, // Default address bits
       .dummy_bits = 0,
-      .mode = 1,                           // Mode 1 is required by the MAX31856
+      .mode = 1, // Mode 1 is required by the MAX31856
+#ifndef ARDUINO
       .clock_source = SPI_CLK_SRC_DEFAULT, // Default clock source
-      .duty_cycle_pos = 0,                 // default duty cycle
+#endif
+      .duty_cycle_pos = 0, // default duty cycle
       .cs_ena_pretrans = 0,
       .cs_ena_posttrans = 0,
-      .clock_speed_hz = (1000000),                // 1 Mhz
-      .input_delay_ns = 0,                        // No input delay (default)
+      .clock_speed_hz = (1000000), // 1 Mhz
+      .input_delay_ns = 0,         // No input delay (default)
+#ifndef ARDUINO
       .sample_point = SPI_SAMPLING_POINT_PHASE_0, // Default sampling point
+#endif
       .spics_io_num = 15,
       .flags = 0,
       .queue_size = 1,
