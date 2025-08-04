@@ -39,7 +39,7 @@ namespace ESP_MAX318_THERMOCOUPLE
 			MAX31856_TCTYPE_UNKNOWN = 0xFF // Unknown type
 		};
 
-		//Note: in one_shot mode, an OC Fault check happens every conversion. In auto convert mode, it happens every 16th conversion. Auto convert works well with a sample average of 16 this way
+		// Note: in one_shot mode, an OC Fault check happens every conversion. In auto convert mode, it happens every 16th conversion. Auto convert works well with a sample average of 16 this way
 		enum class OCFaultConfig
 		{
 			NONE = 0x00,
@@ -67,11 +67,11 @@ namespace ESP_MAX318_THERMOCOUPLE
 			.command_bits = 0, // Default command bits
 			.address_bits = 0, // Default address bits
 			.dummy_bits = 0,
-			.mode = 1,									// Mode 1 is required by the MAX31856
-			.clock_source = SPI_CLK_SRC_DEFAULT,		// Default clock source
-			.duty_cycle_pos = 0,						// default duty cycle
-			.cs_ena_pretrans = 0,						// No pre-transmission CS enable
-			.cs_ena_posttrans = 0,						// No post-transmission CS enable
+			.mode = 1,							 // Mode 1 is required by the MAX31856
+			.clock_source = SPI_CLK_SRC_DEFAULT, // Default clock source
+			.duty_cycle_pos = 0,				 // default duty cycle
+			.cs_ena_pretrans = 0,
+			.cs_ena_posttrans = 0,
 			.clock_speed_hz = (1000000),				// 1 Mhz
 			.input_delay_ns = 0,						// No input delay (default)
 			.sample_point = SPI_SAMPLING_POINT_PHASE_0, // Default sampling point
@@ -103,33 +103,48 @@ namespace ESP_MAX318_THERMOCOUPLE
 
 		virtual bool read(Result &anOutResult) override;
 
-		const uint8_t MAX31856_CR0_REG = 0x00;
-		const uint8_t MAX31856_CR0_AUTOCONVERT = 0x80;
-		const uint8_t MAX31856_CR0_1SHOT = 0x40;
-		const uint8_t MAX31856_CR0_OCFAULT1 = 0x20;
-		const uint8_t MAX31856_CR0_OCFAULT0 = 0x10;
-		const uint8_t MAX31856_CR0_CJ = 0x08;
-		const uint8_t MAX31856_CR0_FAULT = 0x04;
-		const uint8_t MAX31856_CR0_FAULTCLR = 0x02;
+		struct CR0
+		{
+			const uint8_t readAddress = 0x00;
+			const uint8_t writeAddress = 0x80;
 
-		const uint8_t MAX31856_CR1_TC_B = 0x00;
-		const uint8_t MAX31856_CR1_TC_E = 0x01;
-		const uint8_t MAX31856_CR1_TC_J = 0x02;
-		const uint8_t MAX31856_CR1_TC_K = 0x03;
-		const uint8_t MAX31856_CR1_TC_N = 0x04;
-		const uint8_t MAX31856_CR1_TC_R = 0x05;
-		const uint8_t MAX31856_CR1_TC_S = 0x06;
-		const uint8_t MAX31856_CR1_TC_T = 0x07;
-		const uint8_t MAX31856_CR1_VMODE_G8 = 0x08;
-		const uint8_t MAX31856_CR1_VMODE_G32 = 0x0C;
+			// all registers default to a value of 0
+			struct Register
+			{
+				const uint8_t conversionMode = 0b01000000; // 1 to enable auto conversion, zero for one-shot mode.
+				const uint8_t requestOneShot = 0b00100000; // 1 to request a one-shot conversion, self-clears to zero
+				const uint8_t ocFault1 = 0b00010000;
+				const uint8_t ocFault0 = 0b00001000;
+				const uint8_t coldJunctionSensor = 0b00000100; // 0 = enabled, 1 = disabled
+				const uint8_t faultMode = 0b00000010;		   // comparator = 0, interrupt = 1
+				const uint8_t faultClear = 0b00000001;		   // Clear all faults
+				const uint8_t filterHz = 0b00000000;		   // Filter frequency, 0 = 60Hz, 1 = 50Hz
+			};
+		};
 
-		const uint8_t MAX31856_CR1_AVG_MODE_1 = 0x00;  // No averaging
-		const uint8_t MAX31856_CR1_AVG_MODE_2 = 0x10;  // Enable + 2 samples
-		const uint8_t MAX31856_CR1_AVG_MODE_4 = 0x30;  // Enable + 4 samples
-		const uint8_t MAX31856_CR1_AVG_MODE_8 = 0x50;  // Enable + 8 samples
-		const uint8_t MAX31856_CR1_AVG_MODE_16 = 0x70; // Enable + 16 samples
+		struct CR1
+		{
+			const uint8_t readAddress = 0x01;
+			const uint8_t writeAddress = 0x81;
 
-		const uint8_t MAX31856_CR1_REG = 0x01;
+		const uint8_t CR1_TC_B = 0x00;
+		const uint8_t CR1_TC_E = 0x01;
+		const uint8_t CR1_TC_J = 0x02;
+		const uint8_t CR1_TC_K = 0x03;
+		const uint8_t CR1_TC_N = 0x04;
+		const uint8_t CR1_TC_R = 0x05;
+		const uint8_t CR1_TC_S = 0x06;
+		const uint8_t CR1_TC_T = 0x07;
+		const uint8_t CR1_VMODE_G8 = 0x08;
+		const uint8_t CR1_VMODE_G32 = 0x0C;
+
+		const uint8_t CR1_AVG_MODE_1 = 0x00;  // No averaging
+		const uint8_t CR1_AVG_MODE_2 = 0x10;  // Enable + 2 samples
+		const uint8_t CR1_AVG_MODE_4 = 0x30;  // Enable + 4 samples
+		const uint8_t CR1_AVG_MODE_8 = 0x50;  // Enable + 8 samples
+		const uint8_t CR1_AVG_MODE_16 = 0x70; // Enable + 16 samples
+
+		const uint8_t CR1_REG = 0x01;
 		const uint8_t MAX31856_MASK_REG = 0x02;
 		const uint8_t MAX31856_CJHF_REG = 0x03;
 		const uint8_t MAX31856_CJLF_REG = 0x04;

@@ -40,6 +40,16 @@ namespace ESP_MAX318_THERMOCOUPLE
             return newDevice;
         }
 
+        static constexpr spi_bus_config_t defaultBusConfig = {
+            .mosi_io_num = GPIO_NUM_13,
+            .miso_io_num = GPIO_NUM_12,
+            .sclk_io_num = GPIO_NUM_14,
+            .quadwp_io_num = -1,   // Not used
+            .quadhd_io_num = -1,   // Not used
+            .max_transfer_sz = 32, // Maximum bytes per transaction
+            .flags = SPICOMMON_BUSFLAG_MASTER,
+        };
+
     private:
         spi_host_device_t myHostId;
         std::shared_ptr<MAX318_Base> myDevices[3];
